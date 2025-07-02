@@ -1,0 +1,4 @@
+# add project dependencies here
+# kafka-python==2.0.2
+# feast==0.18.0
+# lightgbm==3.3.2
