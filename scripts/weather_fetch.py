@@ -1,6 +1,9 @@
 # scripts/test_weather.py
+import os
+import sys
+
+import requests
 from dotenv import load_dotenv
-import os, requests, sys, json
 
 # Load key, silently
 load_dotenv("config/.env")
@@ -11,12 +14,7 @@ if not api_key:
 
 # Build request
 url = "https://api.openweathermap.org/data/3.0/onecall"
-params = {
-    "lat": 52.0786,
-    "lon": -1.0169,
-    "units": "metric",
-    "appid": api_key
-}
+params = {"lat": 52.0786, "lon": -1.0169, "units": "metric", "appid": api_key}
 
 # Fetch
 resp = requests.get(url, params=params)
