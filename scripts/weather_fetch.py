@@ -1,4 +1,4 @@
-# scripts/test_weather.py
+# scripts/weather_fetch.py
 import os
 import sys
 
