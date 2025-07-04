@@ -5,17 +5,19 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-BASE = "https://ergast.com/api/f1"
+# ←— use /mrd, not /api/f1
+BASE = "https://ergast.com/mrd"
 
 
 def fetch_laps_for_race(season: int, round_: int):
     url = f"{BASE}/{season}/{round_}/laps.json?limit=2000"
-    j = requests.get(url).json()
+    resp = requests.get(url, timeout=10)
+    resp.raise_for_status()
+    j = resp.json()
     records = []
     for lap in j["MRData"]["LapTable"]["Laps"]:
         lap_num = int(lap["number"])
         for timing in lap["Timings"]:
-            # parse mm:ss.sss → seconds
             mm, ss = timing["time"].split(":")
             lap_time_s = int(mm) * 60 + float(ss)
             records.append(
@@ -36,7 +38,6 @@ def fetch_laps_for_race(season: int, round_: int):
 
 
 def fetch_season(season: int):
-    # first, get list of races in this season
     try:
         resp = requests.get(f"{BASE}/{season}/races.json?limit=100", timeout=10)
         resp.raise_for_status()
@@ -64,6 +65,5 @@ def fetch_season(season: int):
 
 
 if __name__ == "__main__":
-    # pick the season(s) you want
     for year in [2022, 2023]:
         fetch_season(year)
