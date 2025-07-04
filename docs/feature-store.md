@@ -1,5 +1,4 @@
-### Examples
-
+## Examples
 
 ### Retrieve online features
 
@@ -12,10 +11,3 @@ df = fs.get_online_features(
   entity_rows=[{"car_id": 2}]
 ).to_df()
 print(df)
-EOF
-
-
-### Benchmark
-
-```bash
-python scripts/benchmark_read.py
