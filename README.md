@@ -14,3 +14,15 @@ A fully-featured, machine-learning system that ingests live Formula 1 telemetry,
 ```bash
 git clone git@github.com:rishipatel0529/f1-strategy-platform.git
 cd f1-strategy-platform
+
+### Reproducing the data
+
+1. `pip install -r requirements.txt`  
+2. `python scripts/fetch_laps_fastf1.py`  
+3. `python scripts/fetch_features_fastf1.py`  
+4. `python scripts/convert_features_to_parquet.py`  
+
+This will generate:
+- `data/historical/.../*.parquet`  
+- `data/features/features_2022.parquet`  
+- `data/train_dataset.parquet`
