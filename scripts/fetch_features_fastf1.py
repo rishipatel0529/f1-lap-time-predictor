@@ -1,54 +1,56 @@
 #!/usr/bin/env python3
 import argparse
-import os
+import shutil
+from pathlib import Path
 
 import fastf1 as ff1
 import pandas as pd
 
-# Enable FastF1 cache
-ff1.Cache.enable_cache("data/cache")
+# Enable FastF1 cache directory
+CACHE_DIR = Path("data/cache")
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+ff1.Cache.enable_cache(str(CACHE_DIR))
 
 
 def fetch_all_features(season: int, output_dir: str = "data/features"):
     """
-    For a given F1 season, loads each race (Round ≥ 1),
-    pulls driver telemetry, selects & renames the columns
-    we actually have, and writes out a CSV of all features.
+    Fetch per-driver telemetry for each race in a season, aggregate per-lap,
+    and write a single Parquet file per season.
     """
     print(f"Fetching features for season {season}")
 
-    # full season schedule (includes pre-season, etc.)
-    schedule = ff1.get_event_schedule(season)
+    # Clear old data to prevent appending stale files
+    out_path = Path(output_dir)
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    out_path.mkdir(parents=True, exist_ok=True)
 
+    # Load the season schedule
+    schedule = ff1.get_event_schedule(season)
     feature_frames = []
+
     for _, event in schedule.iterrows():
         round_num = int(event["RoundNumber"])
-        gp_name = event["EventName"]
-
-        # skip any non-race rounds (e.g. Round 0: testing)
         if round_num < 1:
-            print(f"  → Skipping non-race session: {gp_name} (Round {round_num})")
-            continue
+            continue  # skip tests/pre-season
 
+        gp_name = event["EventName"]
         print(f"  → Processing {gp_name} (Round {round_num})")
-
         try:
             session = ff1.get_session(season, round_num, "R")
             session.load()
-        except ValueError as e:
-            print(f"    ⚠️  Could not load race session for Round {round_num}: {e}")
+        except Exception as e:
+            print(f"    ⚠️ Could not load session for Round {round_num}: {e}")
             continue
 
-        # iterate each driver in that race
+        # Iterate over each driver
         for drv in session.laps["DriverNumber"].unique():
-            print(f"    • Driver {drv}")
             laps_drv = session.laps.pick_driver(drv)
-
-            # get raw telemetry
+            # fetch telemetry; TelemetryLapNumber no longer available
             tel = laps_drv.get_telemetry()
 
-            # select & rename only the columns that exist
-            features = tel[
+            # Select only existing telemetry columns
+            tel = tel[
                 [
                     "Time",
                     "RPM",
@@ -60,7 +62,8 @@ def fetch_all_features(season: int, output_dir: str = "data/features"):
                     "Distance",
                     "RelativeDistance",
                 ]
-            ].rename(
+            ]
+            tel = tel.rename(
                 columns={
                     "Time": "time",
                     "RPM": "engine_rpm",
@@ -74,23 +77,22 @@ def fetch_all_features(season: int, output_dir: str = "data/features"):
                 }
             )
 
-            # add metadata columns
-            features["driver"] = drv
-            features["grand_prix"] = gp_name
-            features["season"] = season
+            # Add metadata but note we lack lap_number here
+            tel["car_id"] = drv
+            tel["grand_prix"] = gp_name
+            tel["season"] = season
 
-            feature_frames.append(features)
+            feature_frames.append(tel)
 
-    # concatenate and write out
     if not feature_frames:
-        print("No features collected—check schedule or session loading.")
+        print("No features collected—check your session data.")
         return
 
+    # Concatenate and write out
     all_feats = pd.concat(feature_frames, ignore_index=True)
-    os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join(output_dir, f"features_{season}.csv")
-    all_feats.to_csv(out_path, index=False)
-    print(f"Saved features to {out_path}\n")
+    out_file = out_path / f"features_{season}.parquet"
+    all_feats.to_parquet(out_file, index=False, compression="snappy")
+    print(f"Wrote {out_file} with {len(all_feats)} rows")
 
 
 if __name__ == "__main__":
@@ -109,7 +111,7 @@ if __name__ == "__main__":
         "-o",
         type=str,
         default="data/features",
-        help="Directory to write features CSV",
+        help="Directory to write features Parquet",
     )
     args = parser.parse_args()
 
