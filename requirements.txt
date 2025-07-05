@@ -3,3 +3,7 @@
 # feast==0.18.0
 # lightgbm==3.3.2
 feast
+lightgbm
+scikit-learn
+mlflow
+wandb
