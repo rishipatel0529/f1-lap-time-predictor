@@ -17,14 +17,13 @@ __pycache__/
 .DS_Store
 
 # Data directories & artifacts
-/data/
 data/features_by_gp/
-data/historical/
 data/cache/
 data/**/*.parquet
 
 # One-off data files
 weather.json
+# (we keep data/historical_telemetry.csv tracked)
 
 # Feast / feature repo artifacts
 feature_repo/data/
