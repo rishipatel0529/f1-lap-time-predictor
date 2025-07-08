@@ -21,7 +21,6 @@ __pycache__/
 data/features_by_gp/
 data/historical/
 data/cache/
-data/*.csv
 data/**/*.parquet
 
 # One-off data files
