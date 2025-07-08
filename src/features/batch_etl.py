@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 
 
@@ -12,11 +14,18 @@ def main():
         .reset_index()
     )
 
+    # Add current timestamp for event_time
     agg["event_time"] = pd.Timestamp.now()
 
-    agg.to_parquet("feature_repo/data/telemetry.parquet", index=False)
+    # Ensure the output directory exists
+    out_dir = Path("data") / "historical"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Parquet file created at feature_repo/data/telemetry.parquet")
+    # Write features to Parquet in the test-expected location
+    out_path = out_dir / "telemetry.parquet"
+    agg.to_parquet(out_path, index=False)
+
+    print(f"Parquet file written to {out_path}")
     print(agg)
 
 

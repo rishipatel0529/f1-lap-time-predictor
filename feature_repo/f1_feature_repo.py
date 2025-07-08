@@ -6,7 +6,7 @@ from feast.types import Float32
 car_id = Entity(name="car_id", join_keys=["car_id"], value_type=ValueType.INT64)
 
 telemetry_source = FileSource(
-    path="data/telemetry.parquet",
+    path="data/historical/telemetry.parquet",
     timestamp_field="event_time",
 )
 
