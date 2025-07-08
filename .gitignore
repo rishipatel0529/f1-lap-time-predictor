@@ -3,6 +3,7 @@
 # Python virtual env
 venv/
 .venv/
+.pytest_cache/
 
 # Byte-compiled / cache
 __pycache__/
@@ -25,3 +26,18 @@ __pycache__/
 *.zip
 
 /f1-strategy-platform/7.md
+
+# ignore all parquet datasets
+data/historical/*.parquet
+data/features/*.parquet
+feature_repo/data/*.parquet
+
+# MLflow
+mlruns/
+
+# Data/artifacts
+data/**/*.parquet
+data/*.csv
+data/cache/
+data/features*/
+models/*.pkl
