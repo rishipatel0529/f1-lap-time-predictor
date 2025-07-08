@@ -27,5 +27,10 @@ jobs:
           isort --check-only .
           flake8 .
 
-      - name: Run tests
-        run: pytest --maxfail=1 --disable-warnings -q
+      - name: Run all tests
+        run: |
+          pytest --maxfail=1 --disable-warnings -q
+
+      - name: Run batch ETL tests
+        run: |
+          pytest --maxfail=1 --disable-warnings -q tests/test_batch_etl.py

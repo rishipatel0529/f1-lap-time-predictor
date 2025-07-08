@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/rishipatel/Desktop/f1-strategy-platform/mlruns/333089240007419639/29b4bcb338264f31aa69fcfdae06f034/artifacts
+end_time: 1751953373356
+entry_point_name: ''
+experiment_id: '333089240007419639'
+lifecycle_stage: active
+run_id: 29b4bcb338264f31aa69fcfdae06f034
+run_name: optuna_lgb_search
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1751953370988
+status: 4
+tags: []
+user_id: rishipatel

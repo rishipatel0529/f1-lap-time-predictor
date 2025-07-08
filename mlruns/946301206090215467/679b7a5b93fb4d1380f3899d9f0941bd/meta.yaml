@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/rishipatel/Desktop/f1-strategy-platform/mlruns/946301206090215467/679b7a5b93fb4d1380f3899d9f0941bd/artifacts
+end_time: 1751700976604
+entry_point_name: ''
+experiment_id: '946301206090215467'
+lifecycle_stage: active
+run_id: 679b7a5b93fb4d1380f3899d9f0941bd
+run_name: baseline_lgb
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1751700976119
+status: 3
+tags: []
+user_id: rishipatel

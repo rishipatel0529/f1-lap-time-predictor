@@ -23,3 +23,5 @@ __pycache__/
 
 # .gitignore
 *.zip
+
+/f1-strategy-platform/7.md

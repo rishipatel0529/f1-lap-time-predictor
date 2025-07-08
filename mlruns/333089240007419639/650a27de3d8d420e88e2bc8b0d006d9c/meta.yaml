@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/rishipatel/Desktop/f1-strategy-platform/mlruns/333089240007419639/650a27de3d8d420e88e2bc8b0d006d9c/artifacts
+end_time: 1751953522097
+entry_point_name: ''
+experiment_id: '333089240007419639'
+lifecycle_stage: active
+run_id: 650a27de3d8d420e88e2bc8b0d006d9c
+run_name: trial_34
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1751953521846
+status: 3
+tags: []
+user_id: rishipatel

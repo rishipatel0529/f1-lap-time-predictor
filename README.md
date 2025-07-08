@@ -14,6 +14,7 @@ A fully-featured, machine-learning system that ingests live Formula 1 telemetry,
 ```bash
 git clone git@github.com:rishipatel0529/f1-strategy-platform.git
 cd f1-strategy-platform
+```
 
 ### Reproducing the data
 
@@ -26,3 +27,12 @@ This will generate:
 - `data/historical/.../*.parquet`  
 - `data/features/features_2022.parquet`  
 - `data/train_dataset.parquet`
+
+## Week 7: Baseline Model
+
+We’ve built a simple LightGBM baseline to predict lap times from our per-lap features.
+
+1. Install any missing dependencies  
+   ```bash
+   pip install lightgbm scikit-learn joblib mlflow
+   ```
