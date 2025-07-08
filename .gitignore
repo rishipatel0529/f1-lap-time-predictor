@@ -1,43 +1,44 @@
+# Environment & Secrets
 /config/.env
 
-# Python virtual env
+# Python
 venv/
 .venv/
-.pytest_cache/
-
-# Byte-compiled / cache
 __pycache__/
 *.py[cod]
 *.egg-info/
+.pytest_cache/
 
 # IDE settings
 .vscode/
 .idea/
 
-# MacOS
+# macOS cruft
 .DS_Store
 
-/data/cache/
-/data/features/
-/data/historical/
-/data/train_dataset.parquet
+# Data directories & artifacts
+/data/
+data/features_by_gp/
+data/historical/
+data/cache/
+data/*.csv
+data/**/*.parquet
 
-# .gitignore
-*.zip
+# One-off data files
+weather.json
 
-/f1-strategy-platform/7.md
+# Feast / feature repo artifacts
+feature_repo/data/
 
-# ignore all parquet datasets
-data/historical/*.parquet
-data/features/*.parquet
-feature_repo/data/*.parquet
-
-# MLflow
+# MLflow runs
 mlruns/
 
-# Data/artifacts
-data/**/*.parquet
-data/*.csv
-data/cache/
-data/features*/
+# Trained models (binaries)
 models/*.pkl
+
+# One-off docs & tool output
+7.md
+project_structure.txt
+
+# Archives
+*.zip
