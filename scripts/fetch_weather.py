@@ -12,6 +12,7 @@ import os
 import fastf1 as ff1
 import pandas as pd
 import requests
+
 # 1) Auto-load .env before anything else
 from dotenv import load_dotenv
 
