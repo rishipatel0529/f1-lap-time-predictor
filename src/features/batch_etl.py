@@ -44,6 +44,8 @@ def run_batch_etl() -> pd.DataFrame:
     return df
 
 
+# Alias for tests & CLI
+main = run_batch_etl
+
 if __name__ == "__main__":
-    # if you have a CLI wrapper, call run_batch_etl() here
-    run_batch_etl()
+    main()
