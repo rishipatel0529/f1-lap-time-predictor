@@ -1,3 +1,4 @@
+# scripts/check_parquet_latency.py
 import time
 
 import numpy as np

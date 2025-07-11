@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# scripts/fetch_features_fast1.py
 import argparse
 import shutil
 from pathlib import Path

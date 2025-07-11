@@ -40,3 +40,8 @@ project_structure.txt
 
 # Archives
 *.zip
+
+/archive/
+/data/raw/archive/
+/scripts/archive/
+/src/models/archive/
