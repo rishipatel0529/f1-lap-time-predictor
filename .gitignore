@@ -45,3 +45,7 @@ project_structure.txt
 /data/raw/archive/
 /scripts/archive/
 /src/models/archive/
+
+# ignore backups and raw heavy data
+*.bak
+data/raw/
