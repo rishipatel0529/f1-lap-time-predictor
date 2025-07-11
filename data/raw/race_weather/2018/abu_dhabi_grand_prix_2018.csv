@@ -1,0 +1,2 @@
+season,event,lat,lon,timezone,timezone_offset,current_temp,current_feels_like,current_humidity,current_pressure,current_visibility,current_clouds,current_wind_speed,current_wind_gust,current_wind_deg,minutely_precip_max,hourly_0_temp,hourly_0_pop,hourly_0_weather,daily_0_temp_max,daily_0_temp_min,daily_0_pop
+2018,Abu Dhabi Grand Prix,24.4672,54.6031,Asia/Dubai,14400,33.09,32.93,35,998,10000,0,1.54,,60,,33.23,0,Clouds,39.79,31.61,0

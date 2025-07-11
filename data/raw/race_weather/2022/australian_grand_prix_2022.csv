@@ -1,0 +1,2 @@
+season,event,lat,lon,timezone,timezone_offset,current_temp,current_feels_like,current_humidity,current_pressure,current_visibility,current_clouds,current_wind_speed,current_wind_gust,current_wind_deg,minutely_precip_max,hourly_0_temp,hourly_0_pop,hourly_0_weather,daily_0_temp_max,daily_0_temp_min,daily_0_pop
+2022,Australian Grand Prix,-37.8498,144.968,Australia/Melbourne,36000,8.49,8.11,89,997,5222,100,1.34,3.58,243,0.749,8.41,1,Rain,11.6,7.92,1
