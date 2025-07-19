@@ -37,8 +37,8 @@ def main():
     rmse_base = rmse(y_val, val["pred_baseline"])
     rmse_new = rmse(y_val, val["pred_final"])
     print("Overall Validation RMSE:")
-    print(f"  • Baseline: {rmse_base:.3f} s")
-    print(f"  • Final   : {rmse_new:.3f} s\n")
+    print(f"Baseline: {rmse_base:.3f} s")
+    print(f"Final   : {rmse_new:.3f} s\n")
 
     # 7) per-car RMSE
     rows = []

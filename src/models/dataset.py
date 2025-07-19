@@ -18,9 +18,7 @@ def load_telemetry(season: int, telemetry_base: Path) -> pd.DataFrame:
                 df["grand_prix"] = None
             return df
         except Exception as e:
-            print(
-                f"⚠️  Could not read {season_file}: {e}; falling back to per-GP slices."
-            )
+            print(f"Could not read {season_file}: {e}; falling back to per-GP slices.")
 
     # 2) Fallback: load per-GP slices
     gp_dir = season_dir / "telemetry_by_gp"
@@ -35,7 +33,7 @@ def load_telemetry(season: int, telemetry_base: Path) -> pd.DataFrame:
                 df = pd.read_parquet(fp)
                 break
             except Exception as e:
-                print(f"⏳  Read error on {fp.name}: {e}; retrying in 1s…")
+                print(f"Read error on {fp.name}: {e}; retrying in 1s…")
                 time.sleep(1)
         gp_key = fp.stem.rsplit(f"_{season}", 1)[0]
         df["grand_prix"] = gp_key
@@ -76,7 +74,7 @@ def load_weather(season: int, weather_base: Path) -> pd.DataFrame:
         try:
             df = pd.read_parquet(fp)
         except Exception as e:
-            print(f"⚠️  Could not read weather slice {fp.name}: {e}")
+            print(f"Could not read weather slice {fp.name}: {e}")
             continue
         # extract grand_prix key from filename
         gp_key = fp.stem.rsplit(f"_{season}", 1)[0]
@@ -116,13 +114,13 @@ def build_master_dataset(
             how="left",
         )
     else:
-        print("⚠️  No LapIndex in telemetry; skipped lap-level merge.")
+        print("No LapIndex in telemetry; skipped lap-level merge.")
 
     # 2) Merge weather on season + grand_prix
     if "grand_prix" in tel.columns and not weather.empty:
         tel = tel.merge(weather, on=["season", "grand_prix"], how="left")
     else:
-        print("⚠️  Missing grand_prix or no weather data; skipped weather merge.")
+        print("Missing grand_prix or no weather data; skipped weather merge.")
 
     # 3) Sort for window operations
     sort_keys = ["driver_id", "season"]

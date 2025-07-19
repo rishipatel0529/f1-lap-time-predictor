@@ -43,6 +43,6 @@ if __name__ == "__main__":
     t_new = time_it(new, TEST_BATCH, n_runs=N)
 
     print(f"\nAverage inference time over {N} runs:")
-    print(f"  • old baseline: {t_old*1000:.2f} ms per batch")
-    print(f"  • new model   : {t_new*1000:.2f} ms per batch")
-    print(f"  → new is {t_new/t_old*100:.1f}% of old speed")
+    print(f"old baseline: {t_old*1000:.2f} ms per batch")
+    print(f"new model   : {t_new*1000:.2f} ms per batch")
+    print(f"new is {t_new/t_old*100:.1f}% of old speed")

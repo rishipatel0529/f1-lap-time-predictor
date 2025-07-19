@@ -28,10 +28,10 @@ def main(season: int = 2022):
     model_path = model_dir / f"lgb_baseline_{season}.pkl"
 
     # 1) Build the train dataset (overwrites each run)
-    print(f"➡️  Building train dataset for season {season}…")
+    print(f"Building train dataset for season {season}…")
     df = build_dataset(str(features_dir), str(labels_dir))
     df.to_parquet(train_path, index=False)
-    print(f"   ✔️  Wrote {len(df)} rows to {train_path}")
+    print(f"Wrote {len(df)} rows to {train_path}")
 
     # 2) Train/validation split
     df = df.dropna()
@@ -67,7 +67,7 @@ def main(season: int = 2022):
         # 4) Evaluate
         preds = model.predict(X_val)
         rmse = mean_squared_error(y_val, preds) ** 0.5
-        print(f"✏️  Validation RMSE: {rmse:.3f}")
+        print(f"Validation RMSE: {rmse:.3f}")
         mlflow.log_metric("rmse", rmse)
 
         # 5) Save & log
