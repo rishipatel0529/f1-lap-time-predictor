@@ -20,6 +20,7 @@ __pycache__/
 data/features_by_gp/
 data/cache/
 data/**/*.parquet
+data/
 
 # One-off data files
 weather.json
@@ -46,6 +47,12 @@ project_structure.txt
 /scripts/archive/
 /src/models/archive/
 
+/scripts/checking_scripts/
+
+/session_status_data.csv
+
 # ignore backups and raw heavy data
 *.bak
 data/raw/
+
+/project_structure_pruned.txt
