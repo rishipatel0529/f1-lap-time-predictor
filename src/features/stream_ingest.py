@@ -31,7 +31,7 @@ try:
         df = df.fillna(0.0)
 
         store.write_to_online_store(feature_view_name="tire_temp_stats", df=df)
-        print(f"✅ Written to Feast: {df}")
+        print(f"Written to Feast: {df}")
 
 except KeyboardInterrupt:
     print("Stopping stream ingestion.")
