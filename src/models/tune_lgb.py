@@ -5,6 +5,7 @@ import mlflow
 import mlflow.lightgbm
 import numpy as np
 import optuna
+from optuna.pruners import MedianPruner
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GroupKFold
 
@@ -24,9 +25,9 @@ def objective(trial):
         "metric": "rmse",
         "verbosity": -1,
         "boosting_type": "gbdt",
-        "num_leaves": trial.suggest_int("num_leaves", 31, 128),
-        "max_depth": trial.suggest_int("max_depth", 5, 12),
-        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 1e-2, log=True),
+        "num_leaves": trial.suggest_int("num_leaves", 31, 80),
+        "max_depth": trial.suggest_int("max_depth", 5, 10),
+        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 5e-3, log=True),
         "feature_fraction": trial.suggest_float("feature_fraction", 0.6, 1.0),
         "bagging_fraction": trial.suggest_float("bagging_fraction", 0.6, 1.0),
         "bagging_freq": trial.suggest_int("bagging_freq", 1, 5),
@@ -41,13 +42,14 @@ def objective(trial):
         # 5) Train LightGBM on this fold
         dtrain = lgb.Dataset(X_tr, label=y_tr)
         dval = lgb.Dataset(X_val, label=y_val, reference=dtrain)
+
         model = lgb.train(
             params,
             dtrain,
-            num_boost_round=200,
+            num_boost_round=100,
             valid_sets=[dtrain, dval],
             valid_names=["train", "valid"],
-            callbacks=[lgb.early_stopping(100)],
+            callbacks=[lgb.early_stopping(50)],
         )
 
         # 6) Predict & evaluate
@@ -70,6 +72,8 @@ def objective(trial):
 
 if __name__ == "__main__":
     mlflow.set_experiment("lgbm_groupkf_tuning")
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=50, timeout=3600)
+    study = optuna.create_study(
+        direction="minimize", pruner=MedianPruner(n_warmup_steps=5)
+    )
+    study.optimize(objective, n_trials=20, timeout=1800)
     print("Best parameters:", study.best_trial.params)
