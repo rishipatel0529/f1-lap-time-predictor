@@ -54,7 +54,7 @@ def main():
     # 6) Predict & evaluate on 2025
     preds = model.predict(X_test)
     rmse = np.sqrt(mean_squared_error(y_test, preds))
-    print(f"Hold‑out 2025 RMSE: {rmse:.3f} seconds")
+    print(f"Hold‑out 2024 RMSE: {rmse:.3f} seconds")
 
 
 if __name__ == "__main__":

@@ -11,8 +11,8 @@ from src.models.data_loader import load_raw_df  # <- use the preprocessed loader
 def load_data():
     df = load_raw_df()
     # train/test split on full years
-    train_df = df[df["season"] <= 2024]
-    test_df = df[df["season"] == 2025]
+    train_df = df[df["season"] <= 2023]
+    test_df = df[df["season"] == 2024]
     X_train = train_df.drop(
         columns=["lap_time", "season", "grand_prix"], errors="ignore"
     )
