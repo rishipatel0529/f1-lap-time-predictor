@@ -24,7 +24,6 @@ def objective(trial):
         "metric": "rmse",
         "verbosity": -1,
         "boosting_type": "gbdt",
-        "device": "gpu",
         "num_leaves": trial.suggest_int("num_leaves", 31, 128),
         "max_depth": trial.suggest_int("max_depth", 5, 12),
         "learning_rate": trial.suggest_float("learning_rate", 1e-3, 1e-2, log=True),
