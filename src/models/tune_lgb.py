@@ -13,10 +13,11 @@ from src.models.data_loader import load_data
 
 
 def objective(trial):
-    # 1) Load data WITH groups
-    X, y, groups = load_data(return_groups=True)
-    mask = groups.str.split("_").str[0].astype(int) <= 2024
-    X, y, groups = X[mask], y[mask], groups[mask]
+
+    # 1) Load data 2019–2023 only (hold out 2024 for final test)
+    X_full, y_full, groups_full = load_data(return_groups=True)
+    mask = groups_full.str.split("_", expand=True)[0].astype(int) <= 2023
+    X, y, groups = X_full[mask], y_full[mask], groups_full[mask]
 
     # 2) Define your CV splitter
     cv = GroupKFold(n_splits=5)

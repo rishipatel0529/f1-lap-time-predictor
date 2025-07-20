@@ -12,9 +12,9 @@ def main():
     # 1) Load the full processed DataFrame
     df = load_raw_df()
 
-    # 2) Split into train (2019-2024) and test (2025)
-    train_df = df[df["season"] <= 2024]
-    test_df = df[df["season"] == 2025]
+    # 2) Split into train (2019-2023) and test (2024)
+    train_df = df[df["season"] <= 2023]
+    test_df = df[df["season"] == 2024]
 
     # 3) Separate X/y
     y_train = train_df["lap_time"]
