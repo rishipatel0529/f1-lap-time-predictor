@@ -89,23 +89,28 @@ def load_data(return_groups: bool = False):
     groups identifies each rows race (season + grand_prix).
     """
     df = load_all_races()  # all seasons
+
+    # 1) Clean target
     df["lap_time"] = pd.to_numeric(df["lap_time"], errors="coerce")
     df = df.dropna(subset=["lap_time"])
+
+    # 2) Time → seconds & drop unwanted
     df = preprocess_times(df)
     df = df.drop(
         columns=["TrackStatus", "DeletedReason", "IsAccurate"], errors="ignore"
     )
+
+    # 3) **Build groups BEFORE encoding away grand_prix**
+    groups = df["season"].astype(str) + "_" + df["grand_prix"].astype(str)
+
+    # 4) One‑hot encode the categorical features
     df = encode_categoricals(df)
 
-    # Build the features & target
+    # 5) Separate X & y
     y = df["lap_time"]
     X = df.drop(columns=["lap_time", "index"], errors="ignore")
 
-    # Create a “group” column: one group per race
-    # e.g. "2019_abu_dhabi_grand_prix"
-    groups = df["season"].astype(str) + "_" + df["grand_prix"].astype(str)
-
-    # Keep only numeric/bool
+    # 6) Keep only numeric & bool
     X = X.select_dtypes(include=[np.number, "bool_"]).fillna(0)
 
     if return_groups:
