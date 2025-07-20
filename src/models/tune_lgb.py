@@ -1,87 +1,76 @@
-#!/usr/bin/env python3
-"""
-Optuna-based hyperparameter search for our LightGBM lap-time regressor.
-Each trial is logged as a nested MLflow run under the main experiment.
-"""
+# src/models/tune_lgb.py
 
-import math
-import os
-from pathlib import Path
-
+import lightgbm as lgb
 import mlflow
+import mlflow.lightgbm
+import numpy as np
 import optuna
-import pandas as pd
-from lightgbm import LGBMRegressor, early_stopping, log_evaluation
 from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupKFold
 
-# Disable W&B since we’re not using it here
-os.environ.setdefault("WANDB_MODE", "disabled")
-
-DATA_PATH = Path("data/train_dataset.parquet")
-EXPERIMENT_NAME = "f1_lap_time_tuning"
-N_TRIALS = 50
+from src.models.data_loader import load_data
 
 
 def objective(trial):
-    # 1) Sample hyperparameters
+    # 1) Load data WITH groups
+    X, y, groups = load_data(return_groups=True)
+
+    # 2) Define your CV splitter
+    cv = GroupKFold(n_splits=5)
+
+    # 3) Sample hyperparameters
     params = {
         "objective": "regression",
         "metric": "rmse",
         "verbosity": -1,
-        "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
-        "num_leaves": trial.suggest_int("num_leaves", 16, 256),
-        "min_data_in_leaf": trial.suggest_int("min_data_in_leaf", 5, 100),
-        "feature_fraction": trial.suggest_float("feature_fraction", 0.5, 1.0),
-        "bagging_fraction": trial.suggest_float("bagging_fraction", 0.5, 1.0),
-        "bagging_freq": trial.suggest_int("bagging_freq", 1, 10),
+        "boosting_type": "gbdt",
+        "device": "gpu",
+        "num_leaves": trial.suggest_int("num_leaves", 31, 128),
+        "max_depth": trial.suggest_int("max_depth", 5, 12),
+        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 1e-2, log=True),
+        "feature_fraction": trial.suggest_float("feature_fraction", 0.6, 1.0),
+        "bagging_fraction": trial.suggest_float("bagging_fraction", 0.6, 1.0),
+        "bagging_freq": trial.suggest_int("bagging_freq", 1, 5),
     }
 
-    # 2) Load & split data
-    df = pd.read_parquet(DATA_PATH).dropna()
-    X = df.drop(["car_id", "lap_number", "lap_time"], axis=1)
-    y = df["lap_time"]
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+    rmses = []
+    # 4) Loop over each fold
+    for fold, (train_idx, val_idx) in enumerate(cv.split(X, y, groups)):
+        X_tr, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_tr, y_val = y.iloc[train_idx], y.iloc[val_idx]
 
-    # 3) Start a nested MLflow run for this trial
-    with mlflow.start_run(nested=True, run_name=f"trial_{trial.number}"):
-        mlflow.log_params(params)
-
-        # 4) Train
-        model = LGBMRegressor(**params, n_estimators=1000)
-        model.fit(
-            X_train,
-            y_train,
-            eval_set=[(X_val, y_val)],
-            callbacks=[
-                early_stopping(stopping_rounds=20),
-                log_evaluation(period=50),
-            ],
+        # 5) Train LightGBM on this fold
+        dtrain = lgb.Dataset(X_tr, label=y_tr)
+        dval = lgb.Dataset(X_val, label=y_val, reference=dtrain)
+        model = lgb.train(
+            params,
+            dtrain,
+            num_boost_round=200,
+            valid_sets=[dtrain, dval],
+            valid_names=["train", "valid"],
+            callbacks=[lgb.early_stopping(100)],
         )
 
-        # 5) Evaluate
+        # 6) Predict & evaluate
         preds = model.predict(X_val)
-        rmse = math.sqrt(mean_squared_error(y_val, preds))
-        mlflow.log_metric("rmse", rmse)
+        rmse = np.sqrt(mean_squared_error(y_val, preds))
+        rmses.append(rmse)
 
-        return rmse
+    # 7) Average RMSE across folds
+    mean_rmse = float(np.mean(rmses))
 
+    # 8) Log the average RMSE once
+    with mlflow.start_run(nested=True):
+        mlflow.log_params(params)
+        mlflow.log_metric("cv_rmse", mean_rmse)
+        # Optionally log the final fold’s model
+        mlflow.lightgbm.log_model(model, artifact_path="model")
 
-def main():
-    # 1) set experiment
-    mlflow.set_experiment(EXPERIMENT_NAME)
-
-    # 2) start one outer run to group all trials
-    with mlflow.start_run(run_name="optuna_lgb_search"):
-        study = optuna.create_study(direction="minimize")
-        study.optimize(objective, n_trials=N_TRIALS)
-
-        print("Best trial:", study.best_trial.number)
-        print("Params:", study.best_trial.params)
-        print("Best RMSE:", study.best_trial.value)
+    return mean_rmse
 
 
 if __name__ == "__main__":
-    main()
+    mlflow.set_experiment("lgbm_groupkf_tuning")
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=50, timeout=3600)
+    print("Best parameters:", study.best_trial.params)
