@@ -88,7 +88,10 @@ def load_data(return_groups: bool = False):
     Returns X, y, and optionally groups.
     groups identifies each rows race (season + grand_prix).
     """
-    df = load_all_races()  # all seasons
+    # Load everything
+    df = load_all_races()  # originally 2019–2025
+    # **NEW** only keep 2019–2024 for tuning
+    df = df[df["season"] <= 2024]
 
     # 1) Clean target
     df["lap_time"] = pd.to_numeric(df["lap_time"], errors="coerce")
@@ -100,7 +103,7 @@ def load_data(return_groups: bool = False):
         columns=["TrackStatus", "DeletedReason", "IsAccurate"], errors="ignore"
     )
 
-    # 3) **Build groups BEFORE encoding away grand_prix**
+    # 3) Build groups BEFORE you one‑hot away grand_prix
     groups = df["season"].astype(str) + "_" + df["grand_prix"].astype(str)
 
     # 4) One‑hot encode the categorical features
