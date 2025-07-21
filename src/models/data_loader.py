@@ -79,8 +79,52 @@ def load_raw_df():
         columns=["TrackStatus", "DeletedReason", "IsAccurate"], errors="ignore"
     )
     df = encode_categoricals(df)
-    # Drop index if present
     df = df.drop(columns=["index"], errors="ignore")
+
+    # —— start reorder block ——
+    # 1) your “core” columns in the exact order you want:
+    cols = [
+        "season",
+        "race_round",
+        "driver_id",
+        "lap_number",
+        "position",
+        "grid_position",
+        "finish_position",
+        "lap_time",
+        "Stint",
+        "pit_stop_lap",
+        "PitInTime",
+        "PitOutTime",
+        "pit_stop_duration",
+        "FreshTyre",
+        "TyreLife",
+        "IsPersonalBest",
+        "SpeedFL",
+        "SpeedI1",
+        "SpeedI2",
+        "SpeedST",
+        "Time",
+        "LapStartDayOfYear",
+        "LapStart_sin",
+        "LapStart_cos",
+        "sector1_time",
+        "sector2_time",
+        "sector3_time",
+        "Sector1SessionTime",
+        "Sector2SessionTime",
+        "Sector3SessionTime",
+        "humidity",
+        "Deleted",
+        "FastF1Generated",
+    ]
+    # 2) everything else, sorted alphabetically
+    rest = sorted(c for c in df.columns if c not in cols)
+    # 3) build and apply the final ordering
+    ordered = [c for c in cols if c in df.columns] + rest
+    df = df[ordered]
+    # —— end reorder block ——
+
     return df
 
 
