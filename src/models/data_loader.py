@@ -7,11 +7,12 @@ import pandas as pd
 
 
 def load_all_races(root: str = "data/raw/three_merged_files") -> pd.DataFrame:
+    """Reads, aligns, and concatenates all per-season CSVs."""
     paths = list(Path(root).rglob("*.csv"))
     dfs = []
     for p in paths:
         df = pd.read_csv(p)
-        df["season"] = int(p.parts[-2])
+        df["season"] = int(p.parts[-2])  # e.g. ".../2019/..." → 2019
         df["grand_prix"] = p.stem.replace(f"_{df['season'][0]}", "")
         dfs.append(df)
     all_cols = set().union(*(df.columns for df in dfs))
@@ -20,7 +21,7 @@ def load_all_races(root: str = "data/raw/three_merged_files") -> pd.DataFrame:
 
 
 def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
-    # 1) Turn any HH:MM:SS‑style fields into float seconds
+    # 1) Convert HH:MM:SS‑style fields to seconds
     td_cols = [
         "Time",
         "PitInTime",
@@ -32,14 +33,14 @@ def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
     ]
     for c in td_cols:
         if c in df:
-            df[c] = pd.to_timedelta(df[c]).dt.total_seconds().fillna(0)
+            df[c] = pd.to_timedelta(df[c]).dt.total_seconds().fillna(0.0)
 
-    # 2) sector?_time already numbers, just coerce
+    # 2) sector*_time are already numeric seconds
     for c in ["sector1_time", "sector2_time", "sector3_time"]:
         if c in df:
-            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
 
-    # 3) Cyclic encode lap‐start
+    # 3) Cyclic encode lap‑start date & time
     if "LapStartDate" in df:
         dt = pd.to_datetime(df["LapStartDate"], errors="coerce")
         df["LapStartDayOfYear"] = dt.dt.dayofyear.fillna(0).astype(int)
@@ -53,22 +54,22 @@ def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
         df["LapStart_cos"] = np.cos(ang)
         df.drop(columns=["LapStartTime"], inplace=True)
 
-    # 4) Align pit‐out with its pit‐in, compute PitDuration, drop old cols
+    # 4) Align each pit‑out with the *next* lap's pit‑in, compute PitDuration
     needed = {"season", "grand_prix", "driver_id", "PitInTime", "PitOutTime"}
     if needed.issubset(df.columns):
-        df.sort_values(
-            ["season", "grand_prix", "driver_id", "lap_number"],
-            inplace=True,
-            ignore_index=True,
-        )
+        # groupby.shift(-1) on the original row order
         df["PitOutAligned"] = df.groupby(["season", "grand_prix", "driver_id"])[
             "PitOutTime"
         ].shift(-1)
+
+        # only compute when both PitInTime & aligned PitOut are > 0
         mask = (df["PitInTime"] > 0) & (df["PitOutAligned"] > 0)
         df["PitDuration"] = 0.0
         df.loc[mask, "PitDuration"] = (
             df.loc[mask, "PitOutAligned"] - df.loc[mask, "PitInTime"]
         )
+
+        # drop the old columns
         df.drop(
             columns=["PitInTime", "PitOutTime", "pit_stop_duration", "PitOutAligned"],
             inplace=True,
@@ -79,35 +80,40 @@ def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
+    """One‑hot encode all of: grand_prix, Team, Driver, Compound."""
     cats = ["grand_prix", "Team", "Driver", "Compound"]
     to_encode = [c for c in cats if c in df]
     return pd.get_dummies(df, columns=to_encode, drop_first=False)
 
 
 def load_raw_df() -> pd.DataFrame:
+    """
+    Returns the full preprocessed DataFrame (with all features & lap_time target),
+    but *before* train/test split.
+    """
     df = load_all_races()
 
-    # target & drop nulls
+    # — target & drop null laps —
     df["lap_time"] = pd.to_numeric(df["lap_time"], errors="coerce")
     df.dropna(subset=["lap_time"], inplace=True)
 
-    # times → seconds, pit logic, cyclic encoding
+    # — times → seconds, pit logic, cyclic encoding —
     df = preprocess_times(df)
 
-    # drop unused
+    # — drop unused metadata —
     df.drop(
         columns=["TrackStatus", "DeletedReason", "IsAccurate"],
         inplace=True,
         errors="ignore",
     )
 
-    # categorical dummies
+    # — one‑hot categoricals —
     df = encode_categoricals(df)
 
-    # lose stray index column
+    # — drop stray index col if present —
     df.drop(columns=["index"], inplace=True, errors="ignore")
 
-    # reorder to taste
+    # — reorder columns to your “core” + the rest alphabetically —
     core = [
         "season",
         "race_round",
@@ -148,6 +154,10 @@ def load_raw_df() -> pd.DataFrame:
 
 
 def load_data(return_groups: bool = False):
+    """
+    Returns (X, y) or (X, y, groups), where groups = "season_grand_prix".
+    Only seasons ≤2024 are kept for tuning.
+    """
     df = load_all_races()
     df = df[df["season"] <= 2024]
 
