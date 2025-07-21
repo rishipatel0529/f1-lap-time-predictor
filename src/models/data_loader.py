@@ -35,6 +35,7 @@ def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
         if c in df:
             df[c] = pd.to_timedelta(df[c]).dt.total_seconds().fillna(0.0)
 
+    # sector*_time are already in seconds
     for c in ["sector1_time", "sector2_time", "sector3_time"]:
         if c in df:
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
@@ -49,7 +50,6 @@ def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
     if "LapStartTime" in df:
         t = pd.to_timedelta(df["LapStartTime"].fillna("0 days 00:00:00"))
         secs = t.dt.total_seconds()
-        # seconds in one day
         day_secs = 24 * 3600
         ang = 2 * np.pi * (secs / day_secs)
         df["LapStart_sin"] = np.sin(ang)
@@ -72,13 +72,31 @@ def load_raw_df():
     but before train/test split.
     """
     df = load_all_races()
+
+    # --- target & basic clean ---
     df["lap_time"] = pd.to_numeric(df["lap_time"], errors="coerce")
     df = df.dropna(subset=["lap_time"])
+
+    # --- convert all times to seconds / encode cyclic fields ---
     df = preprocess_times(df)
+
+    # --- now synthesize PitDuration and drop the old columns ---
+    if "PitInTime" in df.columns and "PitOutTime" in df.columns:
+        df["PitDuration"] = df["PitOutTime"] - df["PitInTime"]
+        df = df.drop(
+            columns=["PitInTime", "PitOutTime", "pit_stop_duration"],
+            errors="ignore",
+        )
+
+    # --- drop a few other unused bits ---
     df = df.drop(
         columns=["TrackStatus", "DeletedReason", "IsAccurate"], errors="ignore"
     )
+
+    # --- one-hot everything else ---
     df = encode_categoricals(df)
+
+    # --- lose stray index col if present ---
     df = df.drop(columns=["index"], errors="ignore")
 
     # —— start reorder block ——
@@ -94,9 +112,7 @@ def load_raw_df():
         "lap_time",
         "Stint",
         "pit_stop_lap",
-        "PitInTime",
-        "PitOutTime",
-        "pit_stop_duration",
+        "PitDuration",
         "FreshTyre",
         "TyreLife",
         "IsPersonalBest",
@@ -131,37 +147,27 @@ def load_raw_df():
 def load_data(return_groups: bool = False):
     """
     Returns X, y, and optionally groups.
-    groups identifies each rows race (season + grand_prix).
+    groups identifies each row’s race (season + grand_prix).
     """
-    # Load everything
-    df = load_all_races()  # originally 2019–2025
-    # **NEW** only keep 2019–2024 for tuning
+    df = load_all_races()
     df = df[df["season"] <= 2024]
 
-    # 1) Clean target
     df["lap_time"] = pd.to_numeric(df["lap_time"], errors="coerce")
     df = df.dropna(subset=["lap_time"])
 
-    # 2) Time → seconds & drop unwanted
     df = preprocess_times(df)
     df = df.drop(
         columns=["TrackStatus", "DeletedReason", "IsAccurate"], errors="ignore"
     )
 
-    # 3) Build groups BEFORE you one‑hot away grand_prix
     groups = df["season"].astype(str) + "_" + df["grand_prix"].astype(str)
 
-    # 4) One‑hot encode the categorical features
     df = encode_categoricals(df)
 
-    # 5) Separate X & y
     y = df["lap_time"]
     X = df.drop(columns=["lap_time", "index"], errors="ignore")
-
-    # 6) Keep only numeric & bool
     X = X.select_dtypes(include=[np.number, "bool_"]).fillna(0)
 
     if return_groups:
         return X, y, groups
-    else:
-        return X, y
+    return X, y
