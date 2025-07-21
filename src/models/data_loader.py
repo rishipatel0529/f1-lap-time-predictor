@@ -27,9 +27,6 @@ def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
         "PitInTime",
         "PitOutTime",
         "pit_stop_duration",
-        "sector1_time",
-        "sector2_time",
-        "sector3_time",
         "Sector1SessionTime",
         "Sector2SessionTime",
         "Sector3SessionTime",
@@ -37,6 +34,10 @@ def preprocess_times(df: pd.DataFrame) -> pd.DataFrame:
     for c in td_cols:
         if c in df:
             df[c] = pd.to_timedelta(df[c]).dt.total_seconds().fillna(0.0)
+
+    for c in ["sector1_time", "sector2_time", "sector3_time"]:
+        if c in df:
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
 
     # LapStartDate → day of year
     if "LapStartDate" in df:
