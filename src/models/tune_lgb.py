@@ -14,7 +14,6 @@ from src.models.data_loader import load_data
 
 
 def objective(trial, data_path):
-    # load X, y, and season-only groups from the specified CSV
     X, y, groups = load_data(data_path=data_path, return_groups=True)
 
     # mask out 2024 for CV
@@ -75,8 +74,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data-path",
         type=str,
-        default="config/all_laps_with_track_and_corner_features.csv",
-        help="Path to your laps+track+corner features CSV (or root dir of season CSVs)",
+        default=(
+            "/Users/rishipatel/Desktop/f1-strategy-platform/"
+            "data/track_data_csv_files/"
+            "all_telemetry_track_data.csv"
+        ),
+        help="Path to your laps+track+corner features CSV",
     )
     parser.add_argument(
         "--n-trials", type=int, default=40, help="Number of Optuna trials to run"
@@ -87,12 +90,14 @@ if __name__ == "__main__":
     mlflow.set_experiment("f1_strategy_week8")
     study = optuna.create_study(direction="minimize")
     study.optimize(
-        lambda trial: objective(trial, args.data_path), n_trials=args.n_trials
+        lambda trial: objective(trial, args.data_path),
+        n_trials=args.n_trials,
     )
 
     print("Best CV RMSE:", study.best_value)
-    print("Best params:  ", study.best_params)
+    print("Best params: ", study.best_params)
 
+    # Re-fit on all seasons ≤2023
     X, y, groups = load_data(data_path=args.data_path, return_groups=True)
     mask = groups <= 2023
     X_full, y_full = X[mask], y[mask]
