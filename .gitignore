@@ -17,14 +17,8 @@ __pycache__/
 .DS_Store
 
 # Data directories & artifacts
-data/features_by_gp/
-data/cache/
-data/**/*.parquet
 data/
-
-# One-off data files
-weather.json
-# (we keep data/historical_telemetry.csv tracked)
+!data/historical_telemetry.csv
 
 # Feast / feature repo artifacts
 feature_repo/data/
@@ -43,7 +37,6 @@ project_structure.txt
 *.zip
 
 /archive/
-/data/raw/archive/
 /scripts/archive/
 /src/models/archive/
 
@@ -54,5 +47,3 @@ project_structure.txt
 # ignore backups and raw heavy data
 *.bak
 data/raw/
-
-/project_structure_pruned.txt

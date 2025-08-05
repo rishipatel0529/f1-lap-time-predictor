@@ -1,82 +1,112 @@
-# src/models/tune_lgb.py
+#!/usr/bin/env python3
+import argparse
+import os
 
 import lightgbm as lgb
 import mlflow
 import mlflow.lightgbm
 import numpy as np
 import optuna
-from optuna.pruners import MedianPruner
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GroupKFold
 
 from src.models.data_loader import load_data
 
 
-def objective(trial):
+def objective(trial, data_path):
+    # load X, y, and season-only groups from the specified CSV
+    X, y, groups = load_data(data_path=data_path, return_groups=True)
 
-    # 1) Load data 2019–2023 only (hold out 2024 for final test)
-    X_full, y_full, groups_full = load_data(return_groups=True)
-    mask = groups_full.str.split("_", expand=True)[0].astype(int) <= 2023
-    X, y, groups = X_full[mask], y_full[mask], groups_full[mask]
+    # mask out 2024 for CV
+    mask = groups <= 2023
+    X_tr, y_tr, grp_tr = X[mask], y[mask], groups[mask]
 
-    # 2) Define your CV splitter
-    cv = GroupKFold(n_splits=5)
+    # one fold per season
+    cv = GroupKFold(n_splits=grp_tr.nunique())
 
-    # 3) Sample hyperparameters
+    # sample hyperparameters
     params = {
         "objective": "regression",
         "metric": "rmse",
-        "verbosity": -1,
         "boosting_type": "gbdt",
-        "num_leaves": trial.suggest_int("num_leaves", 31, 100),
-        "max_depth": trial.suggest_int("max_depth", 5, 12),
-        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 1e-2, log=True),
-        "feature_fraction": trial.suggest_float("feature_fraction", 0.6, 1.0),
-        "bagging_fraction": trial.suggest_float("bagging_fraction", 0.6, 1.0),
-        "bagging_freq": trial.suggest_int("bagging_freq", 1, 5),
+        "random_state": 42,
+        "num_leaves": trial.suggest_int("num_leaves", 31, 256),
+        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 1e-1, log=True),
+        "feature_fraction": trial.suggest_float("feature_fraction", 0.5, 1.0),
+        "bagging_fraction": trial.suggest_float("bagging_fraction", 0.5, 1.0),
+        "bagging_freq": trial.suggest_int("bagging_freq", 1, 10),
+        "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 10.0),
+        "reg_lambda": trial.suggest_float("reg_lambda", 0.0, 10.0),
     }
 
     rmses = []
-    # 4) Loop over each fold
-    for fold, (train_idx, val_idx) in enumerate(cv.split(X, y, groups)):
-        X_tr, X_val = X.iloc[train_idx], X.iloc[val_idx]
-        y_tr, y_val = y.iloc[train_idx], y.iloc[val_idx]
+    for train_idx, val_idx in cv.split(X_tr, y_tr, grp_tr):
+        X_train, X_val = X_tr.iloc[train_idx], X_tr.iloc[val_idx]
+        y_train, y_val = y_tr.iloc[train_idx], y_tr.iloc[val_idx]
 
-        # 5) Train LightGBM on this fold
-        dtrain = lgb.Dataset(X_tr, label=y_tr)
+        dtrain = lgb.Dataset(X_train, label=y_train)
         dval = lgb.Dataset(X_val, label=y_val, reference=dtrain)
 
-        model = lgb.train(
+        # train with early stopping
+        booster = lgb.train(
             params,
             dtrain,
-            num_boost_round=100,
-            valid_sets=[dtrain, dval],
-            valid_names=["train", "valid"],
-            callbacks=[lgb.early_stopping(50)],
+            num_boost_round=1_000,
+            valid_sets=[dval],
+            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False)],
         )
 
-        # 6) Predict & evaluate
-        preds = model.predict(X_val)
-        rmse = np.sqrt(mean_squared_error(y_val, preds))
-        rmses.append(rmse)
+        preds = booster.predict(X_val)
+        rmses.append(np.sqrt(mean_squared_error(y_val, preds)))
 
-    # 7) Average RMSE across folds
     mean_rmse = float(np.mean(rmses))
 
-    # 8) Log the average RMSE once
+    # log this trial’s params + CV RMSE under a nested MLflow run
     with mlflow.start_run(nested=True):
         mlflow.log_params(params)
         mlflow.log_metric("cv_rmse", mean_rmse)
-        # Optionally log the final fold’s model
-        mlflow.lightgbm.log_model(model, artifact_path="model")
+        mlflow.lightgbm.log_model(booster, artifact_path="model_fold")
 
     return mean_rmse
 
 
 if __name__ == "__main__":
-    mlflow.set_experiment("lgbm_groupkf_tuning")
-    study = optuna.create_study(
-        direction="minimize", pruner=MedianPruner(n_warmup_steps=5)
+    parser = argparse.ArgumentParser("Tune LightGBM on F1 lap data")
+    parser.add_argument(
+        "--data-path",
+        type=str,
+        default="config/all_laps_with_track_and_corner_features.csv",
+        help="Path to your laps+track+corner features CSV (or root dir of season CSVs)",
     )
-    study.optimize(objective, n_trials=20, timeout=1800)
-    print("Best parameters:", study.best_trial.params)
+    parser.add_argument(
+        "--n-trials", type=int, default=40, help="Number of Optuna trials to run"
+    )
+    args = parser.parse_args()
+
+    # run hyperparameter search
+    mlflow.set_experiment("f1_strategy_week8")
+    study = optuna.create_study(direction="minimize")
+    study.optimize(
+        lambda trial: objective(trial, args.data_path), n_trials=args.n_trials
+    )
+
+    print("Best CV RMSE:", study.best_value)
+    print("Best params:  ", study.best_params)
+
+    X, y, groups = load_data(data_path=args.data_path, return_groups=True)
+    mask = groups <= 2023
+    X_full, y_full = X[mask], y[mask]
+
+    final = lgb.LGBMRegressor(**study.best_params, random_state=42)
+    final.fit(X_full, y_full)
+
+    os.makedirs("models/final", exist_ok=True)
+    final_path = "models/final/lgb_final.txt"
+    final.booster_.save_model(final_path)
+    print(f"Final model saved to {final_path}")
+
+    # log the final model on full data
+    with mlflow.start_run():
+        mlflow.log_params(study.best_params)
+        mlflow.log_metric("cv_rmse", study.best_value)
+        mlflow.lightgbm.log_model(final, artifact_path="model_full")

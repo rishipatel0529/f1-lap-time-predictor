@@ -12,9 +12,9 @@ ff1.Cache.enable_cache(str(cache_dir))
 
 def fetch_race_laps(season: int, rnd: int, out_dir: Path):
     ses = ff1.get_session(season, rnd, "R")
-    ses.load()  # downloads telemetry & laps
+    ses.load()
 
-    # 1) Pull lap summaries & timing
+    # Pull lap summaries & timing
     laps = ses.laps[
         [
             "DriverNumber",
@@ -28,7 +28,6 @@ def fetch_race_laps(season: int, rnd: int, out_dir: Path):
         ]
     ].copy()
 
-    # HERE’S THE FIX: rename DriverNumber → driver_id, LapNumber → lap_number, etc.
     laps = laps.rename(
         columns={
             "DriverNumber": "driver_id",
@@ -39,11 +38,10 @@ def fetch_race_laps(season: int, rnd: int, out_dir: Path):
             "Sector3Time": "sector3_time",
         }
     )
-    # convert all the Timedelta columns to seconds
     for col in ["lap_time", "sector1_time", "sector2_time", "sector3_time"]:
         laps[col] = laps[col].dt.total_seconds()
 
-    # 2) Pull result info (grid, finish, compound if present)
+    # Pull result info (grid, finish, compound if present)
     res = ses.results.rename(
         columns={
             "DriverNumber": "driver_id",
@@ -56,22 +54,21 @@ def fetch_race_laps(season: int, rnd: int, out_dir: Path):
         res = res.rename(columns={"Compound": "compound"})
         merge_cols.append("compound")
 
-    # merge on driver_id (now present in both)
+    # merge on driver_id
     laps = laps.merge(res[merge_cols], on="driver_id", how="left")
 
-    # 3) Session‐end weather
+    # Session‐end weather
     weather = ses.weather_data.iloc[-1]
     for col in ["Conditions", "Temperature", "Humidity", "TrackTemperature"]:
         laps[col.lower()] = weather.get(col, None)
 
-    # 4) Add metadata
     laps["season"] = season
     laps["race_round"] = rnd
     gp_name = ses.event["EventName"]
     safe_gp = gp_name.lower().replace(" ", "_")
     laps["grand_prix"] = safe_gp
 
-    # 5) Write out
+    # output
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{safe_gp}_{season}.parquet"
     laps.to_parquet(out_path, index=False, compression="snappy")
@@ -83,7 +80,7 @@ def main():
     p.add_argument("--season", "-s", type=int, required=True)
     args = p.parse_args()
 
-    out_base = Path("data/raw/historical_fastf1") / str(args.season)
+    out_base = Path("data/driver_telemetry_csv_files") / str(args.season)
     schedule = ff1.get_event_schedule(args.season)
     for _, ev in schedule.iterrows():
         rnd = int(ev["RoundNumber"])

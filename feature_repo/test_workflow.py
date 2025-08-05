@@ -7,16 +7,16 @@ from feast import FeatureStore
 def run_f1_demo():
     store = FeatureStore(repo_path=".")
 
-    print("\n--- Run feast apply ---")
+    print("\nRun feast apply")
     subprocess.run(["feast", "apply"])
 
-    print("\n--- Try fetching online features ---")
+    print("\nTry fetching online features")
     fetch_online_features(store)
 
-    print("\n--- Materialize incremental data ---")
+    print("\nMaterialize incremental data")
     store.materialize_incremental(end_date=datetime.now())
 
-    print("\n--- Online features after materialization ---")
+    print("\nOnline features after materialization")
     fetch_online_features(store)
 
 

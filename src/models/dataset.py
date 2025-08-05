@@ -10,7 +10,7 @@ def load_telemetry(season: int, telemetry_base: Path) -> pd.DataFrame:
     season_dir = telemetry_base / str(season)
     season_file = season_dir / f"telemetry_{season}.parquet"
 
-    # 1) Try full-season file
+    # Try full-season file
     if season_file.exists():
         try:
             df = pd.read_parquet(season_file)
@@ -20,14 +20,13 @@ def load_telemetry(season: int, telemetry_base: Path) -> pd.DataFrame:
         except Exception as e:
             print(f"Could not read {season_file}: {e}; falling back to per-GP slices.")
 
-    # 2) Fallback: load per-GP slices
+    # Fallback: load per-GP slices
     gp_dir = season_dir / "telemetry_by_gp"
     if not gp_dir.exists():
         raise FileNotFoundError(f"No telemetry under {season_dir} or {gp_dir}")
 
     dfs = []
     for fp in sorted(gp_dir.glob("*.parquet")):
-        # retry on read failures
         while True:
             try:
                 df = pd.read_parquet(fp)
@@ -91,12 +90,10 @@ def build_master_dataset(
     weather_base: Path,
     output_path: Path,
 ):
-    # load each data source
     tel = load_telemetry(season, telemetry_base)
     laps = load_laps(season, laps_base)
     weather = load_weather(season, weather_base)
 
-    # 1) Merge lap summaries if telemetry has LapIndex
     if "LapIndex" in tel.columns:
         laps_cols = [
             "driver_id",
@@ -116,13 +113,11 @@ def build_master_dataset(
     else:
         print("No LapIndex in telemetry; skipped lap-level merge.")
 
-    # 2) Merge weather on season + grand_prix
     if "grand_prix" in tel.columns and not weather.empty:
         tel = tel.merge(weather, on=["season", "grand_prix"], how="left")
     else:
         print("Missing grand_prix or no weather data; skipped weather merge.")
 
-    # 3) Sort for window operations
     sort_keys = ["driver_id", "season"]
     if "grand_prix" in tel.columns:
         sort_keys.append("grand_prix")
@@ -132,7 +127,6 @@ def build_master_dataset(
         sort_keys.append("timestamp")
     tel = tel.sort_values(sort_keys)
 
-    # 4) Rolling stats
     for feat in ["speed", "engine_rpm", "throttle_pct", "brake_pressure"]:
         if feat in tel.columns:
             grp = tel.groupby("driver_id")[feat]
@@ -143,7 +137,6 @@ def build_master_dataset(
                 grp.rolling(5, min_periods=1).std().reset_index(level=0, drop=True)
             )
 
-    # 5) Acceleration proxy
     if "speed" in tel.columns:
         tel["accel"] = tel.groupby("driver_id")["speed"].diff().fillna(0)
         grp = tel.groupby("driver_id")["accel"]
@@ -154,7 +147,6 @@ def build_master_dataset(
             grp.rolling(5, min_periods=1).min().reset_index(level=0, drop=True)
         )
 
-    # 6) Stint-based features
     if "PitInTime" in tel.columns and "track_distance" in tel.columns:
         tel["in_pit"] = ~tel["PitInTime"].isna()
         tel["stint_id"] = tel.groupby("driver_id")["in_pit"].cumsum()
@@ -165,7 +157,7 @@ def build_master_dataset(
             tel.groupby(["driver_id", "stint_id"])["track_distance"].diff().fillna(0)
         )
 
-    # 7) Write final parquet
+    # Write final parquet
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tel.to_parquet(output_path, index=False, compression="snappy")
     print(f"Master dataset for season {season} → {output_path}")

@@ -9,7 +9,7 @@ producer = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode("utf-8"),
 )
 
-df = pd.read_csv("data/historical_telemetry.csv")
+df = pd.read_csv("data/driver_telemetry_csv_files/historical_telemetry.csv")
 
 for _, row in df.iterrows():
     message = row.to_dict()

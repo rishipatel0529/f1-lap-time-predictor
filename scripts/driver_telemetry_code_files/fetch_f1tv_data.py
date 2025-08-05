@@ -7,14 +7,13 @@ from dotenv import load_dotenv
 
 
 def slugify(name: str) -> str:
-    """Make a filesystem‐safe name from the Grand Prix."""
     return name.strip().lower().replace(" ", "_").replace("-", "_").replace(".", "")
 
 
 def main():
     # CONFIG
     load_dotenv("config/.env")
-    CACHE_DIR = os.getenv("FASTF1_CACHE_PATH", "data/raw/f1tv_data")
+    CACHE_DIR = os.getenv("FASTF1_CACHE_PATH", "data/driver_telemetry_csv_files")
     SEASONS = list(range(2019, 2025))
 
     # CACHE SETUP
@@ -24,7 +23,7 @@ def main():
     # FETCH LOOP
     for year in SEASONS:
         sched = fastf1.get_event_schedule(year)
-        # Uncomment to inspect column names:
+        # Uncomment to get column names:
         # print(f"Schedule columns for {year}:", sched.columns)
 
         for _, ev in sched.iterrows():
@@ -32,12 +31,12 @@ def main():
             gp_name = ev["EventName"]
             safe_gp = slugify(gp_name)
 
-            print(f"\n▶ Fetching {year} · {gp_name} (round {round_no})")
+            print(f"\nFetching {year} · {gp_name} (round {round_no})")
             try:
                 sess = fastf1.get_session(year, round_no, "R")
                 sess.load(telemetry=True, laps=True)
             except Exception as e:
-                print(f"  ✖ skipped ({e})")
+                print(f"skipped ({e})")
                 continue
 
             # Telemetry for all drivers via session.car_data
@@ -52,7 +51,7 @@ def main():
             os.makedirs(tel_outdir, exist_ok=True)
             tel_path = os.path.join(tel_outdir, f"{safe_gp}_{year}.parquet")
             telemetry_df.to_parquet(tel_path, index=False)
-            print(f"  ✔ telemetry → {tel_path}")
+            print(f"telemetry: {tel_path}")
 
             # Laps (compound, pit events, lap & sector times, grid/finish)
             laps = sess.laps.reset_index().rename(
@@ -78,7 +77,7 @@ def main():
             os.makedirs(laps_outdir, exist_ok=True)
             laps_path = os.path.join(laps_outdir, f"{safe_gp}_laps_{year}.parquet")
             laps.to_parquet(laps_path, index=False)
-            print(f"  ✔ laps      → {laps_path}")
+            print(f"laps: {laps_path}")
 
 
 if __name__ == "__main__":

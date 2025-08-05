@@ -9,7 +9,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-# TEST PARAMETERS
+# test
 YEARS = [2025]
 MAX_RACES = 100
 

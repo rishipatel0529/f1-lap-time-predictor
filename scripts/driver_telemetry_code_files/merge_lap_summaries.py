@@ -9,14 +9,12 @@ import pandas as pd
 def run_batch_etl() -> pd.DataFrame:
     """
     1) Read all historical lap summaries from CSV or Parquet
-       (wherever you've dumped them),
     2) concatenate them,
-    3) write out data/historical_telemetry.csv,
-    4) return the DataFrame.
+    3) return the DataFrame.
     """
-    out_csv = Path("data/historical_telemetry.csv")
-    raw_csv_dir = Path("data/raw/historical")
-    raw_parquet_dir = Path("data/raw/historical_fastf1")
+    out_csv = Path("data/driver_telemetry_csv_files/historical_telemetry.csv")
+    raw_csv_dir = Path("data/driver_telemetry_csv_files")
+    raw_parquet_dir = Path("data/driver_telemetry_csv_files")
 
     pieces = []
     # legacy CSVs
@@ -34,10 +32,10 @@ def run_batch_etl() -> pd.DataFrame:
             f"{raw_csv_dir} or {raw_parquet_dir}"
         )
 
-    # concatenate
+    # merge
     df = pd.concat(pieces, ignore_index=True)
 
-    # write canonical CSV
+    # write CSV
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_csv, index=False)
 
@@ -45,7 +43,6 @@ def run_batch_etl() -> pd.DataFrame:
 
 
 def main():
-    """CLI entrypoint if you ever want to call this script directly."""
     run_batch_etl()
 
 

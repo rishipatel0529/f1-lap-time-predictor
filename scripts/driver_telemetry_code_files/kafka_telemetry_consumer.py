@@ -20,7 +20,7 @@ try:
         df = pd.DataFrame(
             [
                 {
-                    "car_id": data.get("car_id", 0),
+                    "driver_id": data.get("driver_id", 0),
                     "event_time": datetime.utcnow(),
                     "tire_temp_avg": data.get("tire_temp_avg", 0.0),
                     "tire_temp_std": data.get("tire_temp_std", 0.0),

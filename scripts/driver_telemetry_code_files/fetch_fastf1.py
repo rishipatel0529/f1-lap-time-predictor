@@ -2,17 +2,6 @@
 """
 scripts/fetch_fastf1.py
 
-Fetches for each season:
-  - Telemetry: driver_id, time, speed, RPM, gear, throttle, brake, DRS
-  - Lap summaries: lap_time, sector_times, position, DRS_active
-
-Writes out:
-  data/raw/fastf1/{season}/telemetry_{season}.parquet
-  data/raw/fastf1/{season}/telemetry_by_gp/{gp}_{season}.parquet
-  data/raw/fastf1/{season}/{season}_laps.parquet
-
-Usage:
-    python scripts/collect_fastf1_data.py --seasons 2022 2023
 """
 import argparse
 import logging
@@ -46,13 +35,13 @@ def fetch_telemetry(season: int, out_base: Path):
             continue
         gp = ev["EventName"]
         gp_key = sanitize(gp)
-        logging.info(f"  → {gp} (Round {rnd})")
+        logging.info(f"{gp} (Round {rnd})")
 
         try:
             sess = fastf1.get_session(season, rnd, "R")
             sess.load()
         except Exception as e:
-            logging.warning(f"     skipped {gp}: {e}")
+            logging.warning(f"skipped {gp}: {e}")
             continue
 
         # collect lap summaries for merge
@@ -94,7 +83,6 @@ def fetch_telemetry(season: int, out_base: Path):
         for drv in laps["driver_id"].unique():
             tel = sess.laps.pick_driver(drv).get_telemetry()
 
-            # select only the available fields
             df = tel[
                 ["Time", "Speed", "RPM", "nGear", "Throttle", "Brake", "DRS"]
             ].copy()
@@ -110,13 +98,11 @@ def fetch_telemetry(season: int, out_base: Path):
                 }
             )
 
-            # annotate
             df["driver_id"] = int(drv)
             df["season"] = season
             df["grand_prix"] = gp
 
             # merge lap context (matches by index within each lap)
-            # FastF1 sets df["LapIndex"] for merge:
             if "LapIndex" in df.columns:
                 df = df.merge(
                     laps,
@@ -125,7 +111,6 @@ def fetch_telemetry(season: int, out_base: Path):
                     how="left",
                 )
 
-            # collect
             all_tel.append(df)
 
         # write per-GP file
@@ -134,7 +119,7 @@ def fetch_telemetry(season: int, out_base: Path):
         )
         gp_file = by_gp_dir / f"{gp_key}_{season}.parquet"
         gp_df.to_parquet(gp_file, index=False, compression="snappy")
-        logging.info(f"    • wrote {gp_file}")
+        logging.info(f"wrote {gp_file}")
 
     if not all_tel:
         raise RuntimeError(f"No telemetry collected for {season}")
@@ -155,12 +140,12 @@ def fetch_laps(season: int, out_base: Path):
         if rnd < 1:
             continue
         gp = ev["EventName"]
-        logging.info(f"  → {gp} (Round {rnd})")
+        logging.info(f"{gp} (Round {rnd})")
         try:
             sess = fastf1.get_session(season, rnd, "R")
             sess.load()
         except Exception as e:
-            logging.warning(f"     skipped {gp}: {e}")
+            logging.warning(f"skipped {gp}: {e}")
             continue
 
         laps = sess.laps[
@@ -220,14 +205,14 @@ if __name__ == "__main__":
         "-s",
         nargs="+",
         type=int,
-        default=list(range(2018, 2026)),
+        default=list(range(2018, 2025)),
         help="Seasons to process",
     )
     p.add_argument(
         "--out",
         "-o",
         type=Path,
-        default=Path("data/raw/fastf1"),
+        default=Path("data/driver_telemetry_csv_files"),
         help="Base output directory",
     )
     args = p.parse_args()
