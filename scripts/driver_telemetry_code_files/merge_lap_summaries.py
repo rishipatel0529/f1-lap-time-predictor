@@ -12,7 +12,8 @@ def run_batch_etl() -> pd.DataFrame:
     2) concatenate them,
     3) return the DataFrame.
     """
-    out_csv = Path("data/driver_telemetry_csv_files/historical_telemetry.csv")
+
+    out_csv = Path("data/historical_telemetry.csv")
     raw_csv_dir = Path("data/driver_telemetry_csv_files")
     raw_parquet_dir = Path("data/driver_telemetry_csv_files")
 
