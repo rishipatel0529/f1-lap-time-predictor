@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from src.features.batch_etl import run_batch_etl
+from scripts.driver_telemetry_code_files.merge_lap_summaries import run_batch_etl
 
 
 def test_batch_etl_output(tmp_path, monkeypatch):
