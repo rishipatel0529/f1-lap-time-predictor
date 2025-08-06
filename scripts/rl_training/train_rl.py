@@ -9,27 +9,31 @@ ray.init(local_mode=True, ignore_reinit_error=True)
 # 2) MLflow experiment setu
 mlflow.set_experiment("f1_rl_week9")
 
+ENABLE_MLFLOW = False
+
 
 def train_fn(config, checkpoint_dir=None):
-    # Log config to MLflow
-    with mlflow.start_run():
-        mlflow.log_params(config)
+    if ENABLE_MLFLOW:
+        with mlflow.start_run():
+            mlflow.log_params(config)
     trainer = PPO(env="f1-pit-env", config=config)
+
     for i in range(config["train_iterations"]):
         result = trainer.train()
         # Log metrics each iteration
-        mlflow.log_metrics(
-            {
-                "episode_reward_mean": result["episode_reward_mean"],
-                "episode_len_mean": result["episode_len_mean"],
-            },
-            step=i,
-        )
+        if ENABLE_MLFLOW:
+            mlflow.log_metrics(
+                {
+                    "episode_reward_mean": result["episode_reward_mean"],
+                    "episode_len_mean": result["episode_len_mean"],
+                },
+                step=i,
+            )
         print(f"Iter {i:03d} reward={result['episode_reward_mean']:.2f}")
     # Save checkpoint
     chk = trainer.save()
-    mlflow.log_artifact(chk)
-    mlflow.log_artifact(chk)
+    if ENABLE_MLFLOW:
+        mlflow.log_artifact(chk)
     return result
 
 
