@@ -1,7 +1,7 @@
 import mlflow
 import ray
 from ray import tune
-from ray.rllib.agents.ppo import PPOTrainer
+from ray.rllib.algorithms.ppo import PPO
 
 # 1) Initialize Ray
 ray.init(local_mode=True, ignore_reinit_error=True)
@@ -14,7 +14,7 @@ mlflow.set_experiment("f1_rl_week9")
 def train_fn(config, checkpoint_dir=None):
     # Log config to MLflow
     mlflow.log_params(config)
-    trainer = PPOTrainer(env="f1-pit-env", config=config)
+    trainer = PPO(env="f1-pit-env", config=config)
     for i in range(config["train_iterations"]):
         result = trainer.train()
         # Log metrics each iteration
