@@ -6,14 +6,14 @@ from ray.rllib.algorithms.ppo import PPO
 # 1) Initialize Ray
 ray.init(local_mode=True, ignore_reinit_error=True)
 
-
-# 2) MLflow experiment setup
+# 2) MLflow experiment setu
 mlflow.set_experiment("f1_rl_week9")
 
 
 def train_fn(config, checkpoint_dir=None):
     # Log config to MLflow
-    mlflow.log_params(config)
+    with mlflow.start_run():
+        mlflow.log_params(config)
     trainer = PPO(env="f1-pit-env", config=config)
     for i in range(config["train_iterations"]):
         result = trainer.train()
@@ -28,6 +28,7 @@ def train_fn(config, checkpoint_dir=None):
         print(f"Iter {i:03d} reward={result['episode_reward_mean']:.2f}")
     # Save checkpoint
     chk = trainer.save()
+    mlflow.log_artifact(chk)
     mlflow.log_artifact(chk)
     return result
 
