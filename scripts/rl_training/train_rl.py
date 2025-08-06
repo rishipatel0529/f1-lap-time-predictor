@@ -86,7 +86,7 @@ if __name__ == "__main__":
             # Longer run for convergence
             "train_iterations": 300,
             # parallel workers for more data per iteration
-            "num_workers": 4,
+            "num_workers": 1,
             "framework": "torch",
             # hyperparameter grid
             "lr": tune.grid_search([1e-3, 5e-4, 1e-4]),
