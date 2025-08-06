@@ -2,6 +2,7 @@ import mlflow
 import ray
 from ray import tune
 from ray.rllib.algorithms.ppo import PPO
+from ray.tune.logger import JsonLoggerCallback
 
 # ─── Register your custom env ────────────────────────────────────────────────
 from src.models.f1_env import env_creator
@@ -60,6 +61,7 @@ if __name__ == "__main__":
     tune.run(
         train_fn,
         name="f1_rl_tuning",
+        callbacks=[JsonLoggerCallback()],
         config={
             "env": "f1-pit-env",
             "train_iterations": 50,
