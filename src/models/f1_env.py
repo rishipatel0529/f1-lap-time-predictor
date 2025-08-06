@@ -13,8 +13,8 @@ class F1PitEnv(gym.Env):
     def __init__(self, config):
         super().__init__()
         self.max_laps = config.get("max_laps", 70)
-        self.pit_penalty = config.get("pit_penalty", 10.0)  # reduced penalty
-        self.finish_bonus = config.get("finish_bonus", 100.0)  # bonus for finishing
+        self.pit_penalty = config.get("pit_penalty", 10.0)
+        self.finish_bonus = config.get("finish_bonus", 100.0)
         self.current_lap = 0
 
         self.observation_space = spaces.Box(
@@ -35,7 +35,6 @@ class F1PitEnv(gym.Env):
 
     def step(self, action):
         reward = 0.0
-        # pit or not
         if action == 1:
             self.tire_wear = 0.0
             self.since_pit = 0

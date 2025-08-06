@@ -35,30 +35,31 @@ def train_fn(config, checkpoint_dir=None):
         mlflow.start_run()
         mlflow.log_params(config)
 
-    trainer = PPO(
-        env="f1-pit-env",
-        config={
-            **config,
-            # PPO-specific tweaks
-            "clip_param": 0.2,
-            "lambda": 0.95,
-            "vf_loss_coeff": 1.0,
-            "entropy_coeff": 0.01,
-        },
-    )
+    # Make sure PPO knows exactly how many CPUs it's consuming:
+    algo_config = {
+        **config,
+        "clip_param": 0.2,
+        "lambda": 0.95,
+        "vf_loss_coeff": 1.0,
+        "entropy_coeff": 0.01,
+        # Pin CPU usage:
+        "num_cpus_for_driver": 1,
+        "num_cpus_per_worker": 1,  # since we only use num_workers=1
+    }
+
+    trainer = PPO(env="f1-pit-env", config=algo_config)
 
     for i in range(config["train_iterations"]):
         result = trainer.train()
 
-        # first iteration: show available keys
         if i == 0:
             print("env_runners keys:", list(result["env_runners"].keys()))
 
-        # pick the best mean-return metric
-        if "episode_return_mean/default_agent" in result["env_runners"]:
-            key = "episode_return_mean/default_agent"
-        else:
-            key = "episode_return_mean"  # fallback
+        key = (
+            "episode_return_mean/default_agent"
+            if "episode_return_mean/default_agent" in result["env_runners"]
+            else "episode_return_mean"
+        )
         mean_return = result["env_runners"][key]
 
         if ENABLE_MLFLOW:
@@ -66,7 +67,6 @@ def train_fn(config, checkpoint_dir=None):
 
         print(f"Iter {i:03d} mean_return={mean_return:.2f}")
 
-    # save final checkpoint
     chk = trainer.save()
     if ENABLE_MLFLOW:
         mlflow.log_artifact(chk)
@@ -79,19 +79,18 @@ if __name__ == "__main__":
     tune.run(
         train_fn,
         name="f1_rl_tuning",
-        # use TensorBoard via JSON logs
         callbacks=[JsonLoggerCallback()],
+        # ensure each trial only grabs 2 CPUs total,
+        # and only one trial runs at once
+        resources_per_trial={"cpu": 2},
+        max_concurrent_trials=1,
         config={
             "env": "f1-pit-env",
-            # Longer run for convergence
             "train_iterations": 300,
-            # parallel workers for more data per iteration
             "num_workers": 1,
             "framework": "torch",
-            # hyperparameter grid
             "lr": tune.grid_search([1e-3, 5e-4, 1e-4]),
             "sgd_minibatch_size": tune.grid_search([64, 256, 512]),
-            # curriculum: start small and grow
             "max_laps": tune.choice([10, 30, 70]),
         },
         stop={"training_iteration": 300},
