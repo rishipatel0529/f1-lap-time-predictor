@@ -2,7 +2,7 @@ import mlflow
 import ray
 from ray import tune
 from ray.rllib.algorithms.ppo import PPO
-from ray.tune.logger import JsonLoggerCallback
+from ray.tune.logger import JsonLoggerCallback, TBXLoggerCallback
 
 # ─── Register your custom env ────────────────────────────────────────────────
 from src.models.f1_env import env_creator
@@ -61,7 +61,10 @@ if __name__ == "__main__":
     tune.run(
         train_fn,
         name="f1_rl_tuning",
-        callbacks=[JsonLoggerCallback()],
+        callbacks=[
+            JsonLoggerCallback(),  # still keeps your JSON backups
+            TBXLoggerCallback(),  # <-- writes real TensorBoard events
+        ],
         config={
             "env": "f1-pit-env",
             "train_iterations": 50,
