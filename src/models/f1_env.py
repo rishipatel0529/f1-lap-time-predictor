@@ -19,11 +19,14 @@ class F1PitEnv(gym.Env):
         self.max_laps = config.get("max_laps", 70)
         self.current_lap = 0
 
+        # Observation: [lap_time, tire_wear, since_last_pit]
         self.observation_space = spaces.Box(
             low=0, high=np.inf, shape=(3,), dtype=np.float32
         )
+        # Action: stay out (0) or pit (1)
         self.action_space = spaces.Discrete(2)
 
+        # state placeholders
         self.tire_wear = 0.0
         self.since_pit = 0
 

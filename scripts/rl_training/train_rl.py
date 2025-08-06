@@ -3,18 +3,16 @@ import ray
 from ray import tune
 from ray.rllib.algorithms.ppo import PPO
 
-# ─── Register your custom env ────────────────────────────────────────────────
 from src.models.f1_env import env_creator
 
+# Register custom env so every Ray worker can find it
 tune.register_env("f1-pit-env", env_creator)
-# ─────────────────────────────────────────────────────────────────────────────
 
-# 1) Initialize Ray
+# Initialize Ray in local debug mode
 ray.init(local_mode=True, ignore_reinit_error=True)
 
-# 2) MLflow experiment setup
+# MLflow experiment (only used if ENABLE_MLFLOW=True)
 mlflow.set_experiment("f1_rl_week9")
-
 ENABLE_MLFLOW = False
 
 
@@ -27,32 +25,47 @@ def train_fn(config, checkpoint_dir=None):
 
     for i in range(config["train_iterations"]):
         result = trainer.train()
-        if ENABLE_MLFLOW:
-            mlflow.log_metrics(
-                {
-                    "episode_reward_mean": result["episode_reward_mean"],
-                    "episode_len_mean": result["episode_len_mean"],
-                },
-                step=i,
+
+        # Debug: print out available keys on first iteration
+        if i == 0:
+            print("Result keys:", result.keys())
+            if "metrics" in result:
+                print("Nested metrics keys:", result["metrics"].keys())
+
+        # Safely extract a reward metric
+        if "episode_reward_mean" in result:
+            reward = result["episode_reward_mean"]
+        elif "metrics" in result and "episode_reward_mean" in result["metrics"]:
+            reward = result["metrics"]["episode_reward_mean"]
+        else:
+            # fallback: pick the first numeric scalar
+            reward = next(
+                (v for v in result.values() if isinstance(v, (int, float))), None
             )
-        print(f"Iter {i:03d} reward={result['episode_reward_mean']:.2f}")
+
+        if ENABLE_MLFLOW:
+            mlflow.log_metrics({"reward": reward}, step=i)
+
+        print(f"Iter {i:03d} reward={reward}")
 
     chk = trainer.save()
     if ENABLE_MLFLOW:
         mlflow.log_artifact(chk)
+
     return result
 
 
-tune.run(
-    train_fn,
-    name="f1_rl_tuning",
-    config={
-        "env": "f1-pit-env",
-        "train_iterations": 5,  # debug small number first
-        "num_workers": 0,  # one process
-        "framework": "torch",
-        "sgd_minibatch_size": tune.grid_search([64, 128]),
-        "lr": tune.grid_search([1e-3, 5e-4]),
-    },
-    stop={"training_iteration": 5},
-)
+if __name__ == "__main__":
+    tune.run(
+        train_fn,
+        name="f1_rl_tuning",
+        config={
+            "env": "f1-pit-env",
+            "train_iterations": 5,  # debug small number
+            "num_workers": 0,  # single process for now
+            "framework": "torch",
+            "sgd_minibatch_size": tune.grid_search([64, 128]),
+            "lr": tune.grid_search([1e-3, 5e-4]),
+        },
+        stop={"training_iteration": 5},
+    )
