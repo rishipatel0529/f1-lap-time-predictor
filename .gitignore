@@ -1,49 +1,72 @@
-# Environment & Secrets
+# Environment & secrets
+.env
+*.env
 /config/.env
 
 # Python
-venv/
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+.ipynb_checkpoints/
 
-# IDE settings
+# IDE / OS cruft
 .vscode/
 .idea/
-
-# macOS cruft
 .DS_Store
+Thumbs.db
 
-# Data directories & artifacts
-data/
-!data/historical_telemetry.csv
+# Data & caches (keep repo lightweight)
+data/**
+!data/.keep
+# keep a single small reference file if you really need it:
+#!data/historical_telemetry.csv
+
+# explicit caches inside data
+data/**/.cache
+data/**/__pycache__
+data/cache/**
+data/cache/ff1_cache/**
 
 # Feast / feature repo artifacts
-feature_repo/data/
+feature_repo/data/**
 
-# MLflow runs
-mlruns/
+# Experiment logs
+mlruns/**
+runs/**
+logs/**
+*.log
 
-# Trained models (binaries)
-models/*.pkl
+# Models (publish via Releases or LFS)
+models/**
+*.pkl
+*.joblib
+*.onnx
+
+# Derived outputs (only keep tiny summaries)
+artifacts/**
+!artifacts/metrics_from_preds.json
+!artifacts/slice_by_race.csv
+!artifacts/slice_by_compound.csv
+!artifacts/slice_by_stint.csv
+!artifacts/residual_hist.png
 
 # One-off docs & tool output
 7.md
 project_structure.txt
+session_status_data.csv
 
-# Archives
+# Archives / temp
 *.zip
-
 /archive/
 /scripts/archive/
 /src/models/archive/
 
+# Testing files
 /scripts/checking_scripts/
-
-/session_status_data.csv
-
-# ignore backups and raw heavy data
-*.bak
-data/raw/
