@@ -1,38 +1,71 @@
-# F1 Race Strategy Optimization Platform
+# F1 Lap Time Predictor — Solo Edition
 
-A fully-featured, machine-learning system that ingests live Formula 1 telemetry, track and weather data, and historical race logs to recommend optimal pit-stop timing and tire choices in real time. Built end-to-end as a scalable microservice architecture—with containerization, orchestration, CI/CD, monitoring, A/B testing, and automated retraining—mirroring the infrastructure used by top motorsport teams.
+A lightweight, single‑machine project to predict **per‑lap time** from historical F1 telemetry, driver/team/circuit metadata, and simple lag features. Designed to run on a **MacBook Air** with no GPUs or heavy infra.
 
-## Getting Started
+**Goal:** RMSE ≈ 4–6 seconds on held‑out race groups (reasonable for a compact baseline; actual results will vary by data quality and feature choices).
 
-### Prerequisites
-- Git  
-- Python 3.9+  
-- Docker & Docker Compose  
-- (Optional) Kubernetes (Minikube or EKS)
+## Why this version?
+- No Kafka/Feast/K8s/etc. — just **pandas + scikit‑learn**.
+- Reproducible **GroupKFold** evaluation by race.
+- Clean feature policy to avoid leakage (no sector‑split times, no per‑lap speeds measured within the lap).
+- Saves artifacts: model (`models/model.joblib`), metrics (`artifacts/metrics.json`), and feature importance CSV.
 
-### Clone the repo
-```bash
-git clone git@github.com:rishipatel0529/f1-strategy-platform.git
-cd f1-strategy-platform
+## Folder layout
+```
+f1-lap-predictor-solo/
+├─ src/
+│  └─ f1lap/
+│     ├─ featurize.py
+│     ├─ train.py
+│     ├─ utils.py
+│     └─ __init__.py
+├─ config/
+│  └─ default.yaml
+├─ models/
+├─ artifacts/            # created on first run
+├─ requirements.txt
+├─ Makefile
+└─ README.md
 ```
 
-### Reproducing the data
+## Quickstart
+1) Create and activate a virtual env (recommended):
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-1. `pip install -r requirements.txt`  
-2. `python scripts/fetch_laps_fastf1.py`  
-3. `python scripts/fetch_features_fastf1.py`  
-4. `python scripts/convert_features_to_parquet.py`  
+2) Put your CSV at some path, e.g. `data/all_telemetry_track_data.csv`.  
+(If you're using the attached example in ChatGPT, download it locally and update the path below.)
 
-This will generate:
-- `data/historical/.../*.parquet`  
-- `data/features/features_2022.parquet`  
-- `data/train_dataset.parquet`
+3) Train & evaluate with default config:
+```bash
+python -m src.f1lap.train --data data/all_telemetry_track_data.csv --config config/default.yaml
+```
 
-## Week 7: Baseline Model
+This will:
+- Clean and featurize rows
+- Build **lag features by driver per race**
+- One‑hot encode drivers/teams/tyre compound/circuit
+- Run **GroupKFold(n_splits=5)** grouped by `season_race`
+- Train a **HistGradientBoostingRegressor** (fast, CPU‑friendly)
+- Write artifacts under `artifacts/` and the trained model under `models/`
 
-We’ve built a simple LightGBM baseline to predict lap times from our per-lap features.
+## Configuration
+Edit `config/default.yaml` to tweak which columns to use/ignore, how many lags to add, and the evaluation setup.
 
-1. Install any missing dependencies  
-   ```bash
-   pip install lightgbm scikit-learn joblib mlflow
-   ```
+## Tips to hit 4–6s RMSE
+- **Filter pit‑in laps** or include `PitDuration` as a feature; pit laps are outliers.
+- Add **rolling stats** (last 3/5 laps) for lap time & tyre life.
+- Keep features that are known **before the lap begins** (avoid sector‑split times measured within the lap).
+- Train by **race‑grouped splits** to simulate unseen sessions.
+- Consider training **separate models per compound** or adding interactions (compound × tyre life × track temperature if available).
+
+## Inference
+After training, you can load `models/model.joblib` and call `predict(X)` where `X` is built using the same `featurize.py` logic on new data rows.
+
+---
+
+**Author**: You 🙂  
+**License**: MIT

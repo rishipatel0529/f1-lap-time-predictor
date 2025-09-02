@@ -1,0 +1,88 @@
+# Minimal, safe-by-default configuration for solo training
+data:
+  csv_path: ""   # override via CLI --data
+  # Drop rows where any of these columns are missing (helps keep target clean)
+  required_columns: ["season", "race_round", "driver_id", "lap_number", "lap_time"]
+
+target: "lap_time"
+
+# Columns that are known before the lap starts (recommended)
+# We'll automatically include those that exist.
+candidate_numeric:
+  - position
+  - grid_position
+  - TyreLife
+  - PitDuration
+  - humidity
+  - track_length
+  - number_of_laps
+  - corners
+  - pit_lane_length
+  - LapStart_sin
+  - LapStart_cos
+
+# Categorical one-hots we expect to find
+candidate_categorical:
+  - race_direction            # e.g., Clockwise/Anti-Clockwise
+  - grand_prix                # if present
+  - compound                  # normalized from Compound_* flags if present
+  - driver_id
+  - Team                      # normalized from Team_* flags if present
+
+# Prefix patterns to auto-include as one-hot if present
+onehot_prefixes:
+  - "Driver_"
+  - "Team_"
+  - "grand_prix_"
+  - "Compound_"
+
+# Columns/prefixes to exclude to avoid leakage or redundancy
+exclude_exact:
+  - "lap_time"
+  - "sector1_time"
+  - "sector2_time"
+  - "sector3_time"
+  - "SpeedI1"
+  - "SpeedI2"
+  - "SpeedST"
+  - "SpeedFL"
+  - "finish_position"
+  - "Sector1SessionTime"
+  - "Sector2SessionTime"
+  - "Sector3SessionTime"
+exclude_prefixes:
+  - "corner_"   # keep if you trust them; safe default is exclude (can be many columns)
+  - "FastF1Generated"
+
+# Add lag features by (season, race_round, driver_id), sorted by lap_number
+lags:
+  lap_time:
+    - 1
+    - 2
+    - 3
+  TyreLife:
+    - 1
+    - 2
+
+# Basic filtering
+filters:
+  drop_pit_in_laps: false  # set true to drop laps with PitDuration > 0.0
+  min_lap_time_sec: 40     # remove impossible laps
+  max_lap_time_sec: 300    # remove outliers: in-lap + safety car extremes, etc.
+
+cv:
+  n_splits: 5
+  group_by: ["season", "race_round"]
+
+model:
+  type: "hgb"   # "hgb" (sklearn HistGradientBoosting), "rf" (RandomForest)
+  params:
+    # sensible defaults for CPU training
+    max_depth: null
+    max_iter: 400
+    learning_rate: 0.08
+    min_samples_leaf: 20
+    l2_regularization: 0.0
+
+intervals:
+  alphas: [0.05, 0.95]
