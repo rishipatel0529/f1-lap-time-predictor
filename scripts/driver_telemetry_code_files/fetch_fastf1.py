@@ -1,7 +1,10 @@
-#!/usr/bin/env python3
 """
-scripts/fetch_fastf1.py
+scripts/driver_telemetry_code_files/fetch_fastf1.py
 
+Fetches F1 telemetry and lap summaries via FastF1 for one or more seasons.
+Produces Parquet outputs partitioned by season and by Grand Prix, plus a season-wide rollup.
+Uses the on-disk FastF1 cache for faster re-runs and lower network usage.
+Intended as a reproducible ETL step feeding model-ready datasets.
 """
 import argparse
 import logging
@@ -10,7 +13,7 @@ from pathlib import Path
 import fastf1
 import pandas as pd
 
-# enable FastF1 cache
+# Configure the FastF1 local cache; repeated runs will reuse downloaded data
 CACHE = Path("data/cache")
 fastf1.Cache.enable_cache(str(CACHE))
 
@@ -18,6 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 
 
 def sanitize(name: str) -> str:
+    # Normalizes event names into safe file keys (e.g., "Bahrain Grand Prix" -> "bahrain_grand_prix")
     return name.strip().lower().replace(" ", "_").replace("/", "_")
 
 
@@ -37,6 +41,7 @@ def fetch_telemetry(season: int, out_base: Path):
         gp_key = sanitize(gp)
         logging.info(f"{gp} (Round {rnd})")
 
+        # Load the race session; .load() populates laps and allows telemetry extraction
         try:
             sess = fastf1.get_session(season, rnd, "R")
             sess.load()
@@ -44,7 +49,7 @@ def fetch_telemetry(season: int, out_base: Path):
             logging.warning(f"skipped {gp}: {e}")
             continue
 
-        # collect lap summaries for merge
+        # Extract a compact lap context table used to enrich per-driver telemetry
         laps = sess.laps[
             [
                 "DriverNumber",
@@ -79,7 +84,7 @@ def fetch_telemetry(season: int, out_base: Path):
             ]
         ]
 
-        # for each driver, fetch telemetry and merge lap context
+        # For each driver in this event, pull high-frequency telemetry and join lap context if available
         for drv in laps["driver_id"].unique():
             tel = sess.laps.pick_driver(drv).get_telemetry()
 
@@ -102,7 +107,7 @@ def fetch_telemetry(season: int, out_base: Path):
             df["season"] = season
             df["grand_prix"] = gp
 
-            # merge lap context (matches by index within each lap)
+            # If telemetry carries LapIndex, align each telemetry row to its lap-level context
             if "LapIndex" in df.columns:
                 df = df.merge(
                     laps,
@@ -113,7 +118,7 @@ def fetch_telemetry(season: int, out_base: Path):
 
             all_tel.append(df)
 
-        # write per-GP file
+        # Persist a per-GP telemetry file to simplify downstream incremental processing
         gp_df = pd.concat(
             [d for d in all_tel if d.iloc[0]["grand_prix"] == gp], ignore_index=True
         )
@@ -124,6 +129,7 @@ def fetch_telemetry(season: int, out_base: Path):
     if not all_tel:
         raise RuntimeError(f"No telemetry collected for {season}")
 
+    # Write a season-wide concatenated telemetry file for convenience
     season_df = pd.concat(all_tel, ignore_index=True)
     season_file = out_base / str(season) / f"telemetry_{season}.parquet"
     season_df.to_parquet(season_file, index=False, compression="snappy")
@@ -141,6 +147,7 @@ def fetch_laps(season: int, out_base: Path):
             continue
         gp = ev["EventName"]
         logging.info(f"{gp} (Round {rnd})")
+        # Load race session to expose the laps table with timing columns
         try:
             sess = fastf1.get_session(season, rnd, "R")
             sess.load()
@@ -148,6 +155,7 @@ def fetch_laps(season: int, out_base: Path):
             logging.warning(f"skipped {gp}: {e}")
             continue
 
+        # Normalize core lap columns into a consistent schema across events
         laps = sess.laps[
             [
                 "DriverNumber",
@@ -191,6 +199,7 @@ def fetch_laps(season: int, out_base: Path):
     if not laps_all:
         raise RuntimeError(f"No lap data for {season}")
 
+    # Persist a season-level Parquet with lap summaries for all rounds
     out_file = out_base / str(season) / f"{season}_laps.parquet"
     pd.concat(laps_all, ignore_index=True).to_parquet(
         out_file, index=False, compression="snappy"
@@ -220,7 +229,7 @@ if __name__ == "__main__":
     for yr in args.seasons:
         season_dir = args.out / str(yr)
         season_dir.mkdir(parents=True, exist_ok=True)
-        # telemetry + partition
+        # Generate per-GP and season-level telemetry artifacts
         fetch_telemetry(yr, args.out)
-        # lap summaries
+        # Generate season-level lap summary artifacts
         fetch_laps(yr, args.out)

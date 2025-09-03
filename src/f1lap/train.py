@@ -1,3 +1,12 @@
+"""
+src/f1lap/train.py
+
+Train script for the solo F1 lap-time predictor.
+Reads YAML config, builds features from a single CSV, runs GroupKFold CV to avoid race leakage,
+reports per-fold and overall RMSE/MAE, then fits a final model on all data and saves it.
+Also derives quick feature importances (impurity or a small permutation fallback) for diagnostics.
+"""
+
 from __future__ import annotations
 import argparse, json, os
 from pathlib import Path
@@ -11,9 +20,11 @@ from joblib import dump
 from .featurize import build_dataset
 
 def rmse(y_true, y_pred):
+    # Convenience wrapper for RMSE to keep printing/JSON concise
     return float(np.sqrt(mean_squared_error(y_true, y_pred)))
 
 def parse_args():
+    # CLI: data path, config, output dirs for metrics and trained model bundle
     ap = argparse.ArgumentParser(description="Train F1 Lap-Time Predictor (solo)")
     ap.add_argument("--data", required=True, help="Path to CSV with all telemetry/metadata")
     ap.add_argument("--config", default="config/default.yaml", help="YAML config path")
@@ -22,6 +33,7 @@ def parse_args():
     return ap.parse_args()
 
 def get_model(cfg):
+    # Choose estimator based on config; keep seeds/params stable for reproducibility
     mtype = cfg["model"]["type"]
     if mtype == "hgb":
         p = cfg["model"]["params"]
@@ -45,12 +57,14 @@ def main():
     with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
 
+    # Build feature matrix X, target y, and grouping labels for CV from the CSV + config
     X, y, groups, feat_names = build_dataset(args.data, cfg)
     print(f"[data] rows={len(X):,} cols={X.shape[1]}")
 
+    # GroupKFold ensures laps from the same (season,race_round) are not split across folds
     gkf = GroupKFold(n_splits=cfg["cv"].get("n_splits", 5))
     fold_metrics = []
-    oof = np.zeros(len(y), dtype=float)
+    oof = np.zeros(len(y), dtype=float) # out-of-fold predictions for unbiased overall metrics
 
     for i, (tr, va) in enumerate(gkf.split(X, y, groups)):
         model = get_model(cfg)
@@ -65,6 +79,7 @@ def main():
         fold_metrics.append(r)
         print(f"[fold {i}] RMSE={r['rmse']:.3f}s  MAE={r['mae']:.3f}s")
 
+    # Aggregate overall quality using OOF predictions; write metrics.json for CI/reporting
     overall = {
         "rmse": rmse(y, oof),
         "mae": float(mean_absolute_error(y, oof)),
@@ -78,17 +93,16 @@ def main():
     with open(outdir/"metrics.json", "w") as f:
         json.dump(overall, f, indent=2)
 
-    # Train final model on all data
+    # Fit the final model on all data to maximize training signal prior to persistence
     final_model = get_model(cfg).fit(X, y)
 
-    # Try to compute simple impurity-based feature importances if available
+    # Try to provide feature importance: prefer impurity if available, else cheap permutation on a sample
     imp = None
     if hasattr(final_model, "feature_importances_"):
         imp = final_model.feature_importances_
     elif hasattr(final_model, "feature_names_in_") and hasattr(final_model, "feature_importances_"):
         imp = final_model.feature_importances_
     else:
-        # HistGradientBoosting doesn't expose impurity importances; fallback to permutation (cheap subset)
         try:
             from sklearn.inspection import permutation_importance
             r = permutation_importance(final_model, X.sample(min(1000, len(X)), random_state=42),
@@ -101,7 +115,7 @@ def main():
         fi = pd.DataFrame({"feature": feat_names[:len(imp)], "importance": imp}).sort_values("importance", ascending=False)
         fi.to_csv(outdir/"feature_importance.csv", index=False)
 
-    # Save model + feature names
+    # Persist model bundle (estimator + feature names) so predict_cli can reproduce the same columns
     modeldir = Path(args.modeldir); modeldir.mkdir(parents=True, exist_ok=True)
     dump({"model": final_model, "feature_names": feat_names}, modeldir/"model.joblib")
     print(f"[save] model → {modeldir/'model.joblib'}")

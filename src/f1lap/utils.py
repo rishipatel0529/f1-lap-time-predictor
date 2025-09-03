@@ -1,3 +1,12 @@
+"""
+src/f1lap/utils.py
+
+Utility helpers used across feature building and training.
+Focus areas: (1) normalizing boolean-like string columns into 0/1,
+(2) composing stable group keys from multiple columns, and
+(3) safe one-hot encoding that tolerates missing columns.
+"""
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd

@@ -16,6 +16,9 @@ __pycache__/
 coverage.xml
 .ipynb_checkpoints/
 
+# pyenv
+.python-version
+
 # IDE / OS cruft
 .vscode/
 .idea/
@@ -25,8 +28,6 @@ Thumbs.db
 # Data & caches (keep repo lightweight)
 data/**
 !data/.keep
-# keep a single small reference file if you really need it:
-#!data/historical_telemetry.csv
 
 # explicit caches inside data
 data/**/.cache
@@ -70,3 +71,11 @@ session_status_data.csv
 
 # Testing files
 /scripts/checking_scripts/
+/scripts/benchmark_hyperparams.py
+/scripts/evaluate_on_2025.py
+/scripts/make_residual_plots.py
+/scripts/rl_training/train_rl.py
+
+# If you ever export parquet/feather outside data/, keep them ignored:
+*.parquet
+*.feather
