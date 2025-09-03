@@ -1,0 +1,14 @@
+paths:
+  data_root: data
+  driver_csv_dir: data/driver_telemetry_csv_files
+  track_data_dir: data/track_data_csv_files
+  weather_dir: data/weather_csv_files
+  output_csv: data/all_telemetry_track_data.csv
+
+scripts:
+  fetch_fastf1: scripts/driver_telemetry_code_files/fetch_fastf1.py
+  fetch_historical_fastf1: scripts/driver_telemetry_code_files/fetch_historical_fastf1.py
+  fetch_f1tv: scripts/driver_telemetry_code_files/fetch_f1tv_data.py
+  track_features: scripts/track_data_code_files/track_feature_extractor.py
+  fetch_weather: scripts/weather_code_files/fetch_weather_visualcrossing.py
+  merge: scripts/merge_lap_summaries.py
