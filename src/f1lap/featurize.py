@@ -1,3 +1,12 @@
+"""
+src/f1lap/featurize.py
+
+Build a model-ready feature matrix from the consolidated lap dataset.
+This module applies consistent cleaning, derives normalized tire/teams, adds per-driver
+lag features, performs one-hot encoding for categoricals (including any prefixed one-hots),
+filters out leakage-prone columns, and returns (X, y, groups, feature_names).
+"""
+
 from __future__ import annotations
 import pandas as pd
 import numpy as np
@@ -34,36 +43,31 @@ def _normalize_team(df: pd.DataFrame) -> pd.Series:
 
 def build_dataset(csv_path: str, cfg: Dict[str, Any]) -> Tuple[pd.DataFrame, pd.Series, pd.Series, List[str]]:
     df = pd.read_csv(csv_path)
-    # Basic cleaning
     df.columns = [c.strip() for c in df.columns]
     df = coerce_booleans(df)
-    # required check
     for col in cfg["data"]["required_columns"]:
         if col not in df.columns:
             raise ValueError(f"Required column '{col}' not found in data.")
     df = df.dropna(subset=cfg["data"]["required_columns"])
-    # Filter lap_time range
     df = df[(df["lap_time"] >= cfg["filters"]["min_lap_time_sec"]) & (df["lap_time"] <= cfg["filters"]["max_lap_time_sec"])]
-    # Optionally drop pit-in laps
     if cfg["filters"]["drop_pit_in_laps"] and "PitDuration" in df.columns:
         df = df[(df["PitDuration"].fillna(0) <= 0.01)]
-    # Derived helpers
+
     df["season_race"] = df["season"].astype(str) + "_" + df["race_round"].astype(str)
-    # Normalize compound/team text
     df["compound"] = _normalize_compound(df)
     df["TeamText"] = _normalize_team(df)
-    # Candidate features
+
     num_cols = [c for c in cfg["candidate_numeric"] if c in df.columns]
     cat_cols = [c for c in cfg["candidate_categorical"] if c in ["race_direction","grand_prix","compound","driver_id","Team","TeamText"] and c in df.columns or c in ["compound","driver_id","TeamText","race_direction","grand_prix"]]
-    # One‑hots from explicit columns with prefixes
+
     auto_onehots = []
     for pref in cfg["onehot_prefixes"]:
         auto_onehots.extend([c for c in df.columns if c.startswith(pref)])
-    # Exclude leaking columns
+
     excl = set(cfg["exclude_exact"])
     for pref in cfg["exclude_prefixes"]:
         excl.update([c for c in df.columns if c.startswith(pref)])
-    # Lags
+
     if "lags" in cfg:
         group_cols = ["season","race_round","driver_id"]
         if all(c in df.columns for c in group_cols):
@@ -73,19 +77,14 @@ def build_dataset(csv_path: str, cfg: Dict[str, Any]) -> Tuple[pd.DataFrame, pd.
                     for s in steps:
                         df[f"{base}_lag{s}"] = df.groupby(group_cols)[base].shift(s)
                         num_cols.append(f"{base}_lag{s}")
-    # Assemble feature matrix
+
     keep_cols = list(dict.fromkeys(num_cols))  # dedupe
     X_num = df[keep_cols].copy() if keep_cols else pd.DataFrame(index=df.index)
     X_cat = pd.get_dummies(df[[c for c in cat_cols if c in df.columns]].astype("category"), drop_first=False) if cat_cols else pd.DataFrame(index=df.index)
-    # Auto one‑hots (already 0/1)
     X_auto = df[[c for c in auto_onehots if c not in excl]].copy() if auto_onehots else pd.DataFrame(index=df.index)
-    # Purge excluded
     X_auto = X_auto[[c for c in X_auto.columns if c not in excl]]
-    # Combine
     X = pd.concat([X_num, X_cat, X_auto], axis=1)
-    # Drop any columns fully NA
     X = X.dropna(axis=1, how="all")
-    # Simple NA handling
     X = X.fillna(0)
     y = df[cfg["target"]].astype(float)
     groups = df["season_race"].astype(str)

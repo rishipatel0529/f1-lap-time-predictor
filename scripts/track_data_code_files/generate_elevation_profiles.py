@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
 """
-generate_elevation_profiles.py
+scripts/track_data_code_files/generate_elevation_profiles.py
 
-Uses a geodetic sampler (via pyproj.Geod) to sample every 10m true distance
-along each track centerline (in lon/lat), fetch elevation (with retry),
-and compute deltas.
+Samples track centerlines every fixed true-distance step and builds elevation profiles.
+Queries Google Elevation for each sampled point (with simple retries) and computes deltas.
+Writes a per-track CSV profile and aggregates basic elevation-change stats for later use.
+Uses WGS84 geodesic distances (pyproj.Geod) to avoid distortion from planar projections.
 """
 
 import os
@@ -19,6 +19,7 @@ from pyproj import Geod
 from requests.exceptions import ReadTimeout, RequestException
 from shapely.geometry import LineString, Point
 
+# tracks to process
 TARGET_TRACKS = [
     "brazilian_grand_prix",
     "canadian_grand_prix",
@@ -47,10 +48,12 @@ BASE_DIR = os.path.dirname(__file__)
 dotenv_path = os.path.join(BASE_DIR, "config", ".env")
 load_dotenv(dotenv_path)
 
+# Google Elevation API key is required; put it in config/.env under GOOGLE_ELEVATION_API_KEY
 API_KEY = os.getenv("GOOGLE_ELEVATION_API_KEY")
 if not API_KEY:
     raise RuntimeError("Set GOOGLE_ELEVATION_API_KEY in config/.env")
 
+# Input centerline GeoJSONs and output folder for per-track elevation profiles (CSV)
 CL_DIR = (
     "/Users/rishipatel/Desktop/f1-strategy-platform/"
     "data/track_data_csv_files/track_centerlines_gps_cords"
@@ -61,11 +64,12 @@ OUT_DIR = (
 )
 os.makedirs(OUT_DIR, exist_ok=True)
 
+# Geodesic model for true-distance calculations on the ellipsoid
 geod = Geod(ellps="WGS84")
 
-
 def get_elevation(lat: float, lon: float) -> float:
-    """Fetch elevation in meters with up to 3 retries on timeout."""
+    # Calls Google Elevation for a single (lat, lon) and retries up to 3 times on transient errors.
+    # Returns the elevation in meters, or NaN if the request fails/returns a non-OK status.
     url = (
         "https://maps.googleapis.com/maps/api/elevation/json"
         f"?locations={lat},{lon}&key={API_KEY}"
@@ -86,10 +90,8 @@ def get_elevation(lat: float, lon: float) -> float:
 
 
 def sample_geodetic(line: LineString, interval_m: float = 10.0):
-    """
-    Sample a LineString (in lon/lat) every `interval_m` meters true distance.
-    Returns (samples: List[Point], total_length_m).
-    """
+    # Walks a LineString (lon/lat) in true meters using WGS84 geodesics and samples every interval_m.
+    # Produces interpolated Points on the line and returns (samples, total_length_m).
     coords = list(line.coords)
     cumdist = [0.0]
     for (lon0, lat0), (lon1, lat1) in zip(coords, coords[1:]):
@@ -114,23 +116,24 @@ master_records = []
 for TARGET_TRACK in TARGET_TRACKS:
     geojson_path = os.path.join(CL_DIR, f"{TARGET_TRACK}.geojson")
     if not os.path.exists(geojson_path):
+        # Skip tracks that don’t have a centerline file present
         print(f"Warning: cannot find {geojson_path}, skipping.")
         continue
 
-    # load centerline in lon/lat
+    # Read centerline geometry in lon/lat (WGS84) to ensure geodesic calculations are valid
     gdf = gpd.read_file(geojson_path).to_crs(epsg=4326)
     centerline: LineString = gdf.geometry.iloc[0]
 
-    # sample every 10 m true distance
+    # Sample every 10 m of true geodesic distance to create a regular chain of points
     samples, lap_length_m = sample_geodetic(centerline, interval_m=10.0)
 
-    # fetch elevations
+    # Query elevations for each sample point (simple rate limit via sleep)
     elevs = []
     for pt in samples:
         elevs.append(get_elevation(pt.y, pt.x))
         time.sleep(0.1)
 
-    # build the per-sample profile DataFrame
+    # Build the per-track elevation profile with deltas between consecutive samples
     interval_m = 10.0
     df = pd.DataFrame(
         {
@@ -141,7 +144,7 @@ for TARGET_TRACK in TARGET_TRACKS:
     )
     df["elev_delta_m"] = df["elevation_m"].diff().fillna(0)
 
-    # compute summary stats
+    # Aggregate simple summary statistics for reporting/debug
     total_change = df["elevation_m"].max() - df["elevation_m"].min()
     up_change = df.loc[df["elev_delta_m"] > 0, "elev_delta_m"].sum()
     down_change = -df.loc[df["elev_delta_m"] < 0, "elev_delta_m"].sum()
@@ -156,7 +159,7 @@ for TARGET_TRACK in TARGET_TRACKS:
         }
     )
 
-    # save per-track profile CSV
+    # output a CSV file with track data
     out_csv = os.path.join(OUT_DIR, f"{TARGET_TRACK}_elevation_profile.csv")
     df.to_csv(out_csv, index=False)
     print(f"Wrote elevation profile: {out_csv}")

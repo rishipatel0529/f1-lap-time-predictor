@@ -1,5 +1,11 @@
-#!/usr/bin/env python3
-# track_feature_extractor.py
+"""
+scripts/track_data_code_files/track_feature_extractor.py
+
+Extracts per-corner geometric and speed features for F1 tracks into a flat CSV.
+Reads track centerlines (GeoJSON), per-corner apex coordinates, and optional elevation profiles.
+Computes radii, inter-corner distances, pit-lane length, elevation deltas, and typical corner speeds.
+Intended to generate modeling features like corner_{i}_{radius|distance|elev_change|entry/exit/max_speed}.
+"""
 
 import glob
 import json
@@ -23,6 +29,7 @@ ff1.Cache.enable_cache(FASTF1_CACHE_DIR)
 
 
 def haversine_m(a, b):
+    # Great-circle distance in meters between two (lat, lon) points
     R = 6371000.0
     lat1, lon1 = map(radians, a)
     lat2, lon2 = map(radians, b)
@@ -32,6 +39,7 @@ def haversine_m(a, b):
 
 
 def latlon_to_xy(lat, lon, lat0, lon0):
+    # Local tangent-plane approximation turning (lat, lon) into meters relative to an origin (lat0, lon0)
     R = 6371000.0
     x = R * radians(lon - lon0) * cos(radians(lat0))
     y = R * radians(lat - lat0)
@@ -39,6 +47,7 @@ def latlon_to_xy(lat, lon, lat0, lon0):
 
 
 def fit_circle_radius(p1, p2, p3):
+    # Estimate the radius of curvature passing through three points using circumcircle algebra
     A = np.linalg.det([[p1[0], p1[1], 1], [p2[0], p2[1], 1], [p3[0], p3[1], 1]])
     if abs(A) < 1e-6:
         return np.nan
@@ -54,6 +63,7 @@ def fit_circle_radius(p1, p2, p3):
 
 
 def load_centerline_xy(host):
+    # Load the track centerline for a given host slug and derive cumulative distance (meters) along it
     gj = json.load(open(f"{CENTERLINE_DIR}/{host}.geojson"))
     coords = gj["features"][0]["geometry"]["coordinates"]
     lon0, lat0 = coords[0]
@@ -63,11 +73,13 @@ def load_centerline_xy(host):
 
 
 def get_elevations_at(distances, elevation_csv):
+    # Interpolate elevation values from a per-track profile at requested centerline distances
     prof = pd.read_csv(elevation_csv)
     return np.interp(distances, prof["distance_m"], prof["elevation_m"])
 
 
 def compute_corner_speeds(lap, apex_dist, L_entry=50, L_exit=80):
+    # Slice lap telemetry around an apex and summarize entry/exit/max speeds for that segment
     tel = lap.get_telemetry().add_distance()
     d_start = max(0, apex_dist - L_entry)
     d_end = min(tel["Distance"].max(), apex_dist + L_exit)
@@ -81,7 +93,7 @@ def compute_corner_speeds(lap, apex_dist, L_entry=50, L_exit=80):
 def main():
     df = pd.read_csv(TRACK_META_CSV)
     df["year_start"] = df["years"].astype(str).str.split("-", n=1).str[0].astype(int)
-    # now filter to just the Russian GP in those three years
+    # Restrict to a specific host and period to keep the example deterministic and manageable
     df = df[
         (df["host"] == "russian_grand_prix") & (df["year_start"].between(2019, 2021))
     ].reset_index(drop=True)
@@ -91,11 +103,11 @@ def main():
     for _, r in df.iterrows():
         host = r["host"]
 
-        # pit entry/exit
+        # Parse pit entry/exit GPS coordinates for pit-lane length calculation
         pit_ent = tuple(map(float, r["pit_entry_coords"].split(",")))
         pit_ext = tuple(map(float, r["pit_exit_coords"].split(",")))
 
-        # corner apex lat/lon
+        # Collect available apex coordinates; rows may omit some corner entries
         nc = int(r["corners"])
         apex_ll = []
         for i in range(1, nc + 1):
@@ -105,10 +117,10 @@ def main():
             lat, lon = map(float, str(val).split(","))
             apex_ll.append((lat, lon))
 
-        # center‐line XY + distances
+        # Load centerline and construct a cumulative distance axis for projection
         xy, ds, lat0, lon0 = load_centerline_xy(host)
 
-        # project each apex into that XY frame
+        # Project each apex to the closest centerline point and sort by lap distance
         apex_xy = np.array([latlon_to_xy(lat, lon, lat0, lon0) for lat, lon in apex_ll])
         apex_d = np.array(
             [ds[np.argmin(np.linalg.norm(xy - p, axis=1))] for p in apex_xy]
@@ -116,7 +128,7 @@ def main():
         order = np.argsort(apex_d)
         apex_d = apex_d[order]
 
-        # corner radii
+        # Estimate a local curvature radius at each apex using points ± CORNER_BUF_M around it
         line = LineString(xy)
         radii = []
         for d in apex_d:
@@ -125,13 +137,13 @@ def main():
             p2 = np.array(line.interpolate(min(ds[-1], d + CORNER_BUF_M)).coords[0])
             radii.append(fit_circle_radius(p0, p, p2))
 
-        # corner‐to‐corner distances
+        # Compute distances between successive apexes and to the start/finish
         corner_distances = np.diff(np.concatenate([[0], apex_d, [ds[-1]]])).tolist()
 
-        # pit‐lane length
+        # Pit-lane length derived from geodesic distance between entry and exit markers
         pit_len = haversine_m(pit_ent, pit_ext)
 
-        # elevation deltas
+        # Interpolate elevation at apex distances and form deltas between corners
         pat = os.path.join(ELEVATION_DIR, f"{host}*elevation_profile.csv")
         files = glob.glob(pat)
         if not files:
@@ -139,7 +151,7 @@ def main():
         elevs = get_elevations_at(apex_d, files[0])
         elev_changes = np.diff(elevs).tolist()
 
-        # corner speeds
+        # Pull a representative lap (fastest) to summarize entry/exit/max speeds around each apex
         year = int(str(r["years"]).split("-")[0])
         sess = ff1.get_session(year, host, "Race")
         sess.load()
@@ -160,7 +172,7 @@ def main():
             }
         )
 
-    # build DataFrame and expand lists into per‑corner columns
+    # Expand list-valued fields into per-corner columns so downstream modeling can select by prefix
     df_feats = pd.DataFrame(out)
     max_n = df_feats["corner_radii"].apply(len).max()
     for i in range(max_n):
@@ -183,7 +195,7 @@ def main():
             lambda x: x[i] if i < len(x) else np.nan
         )
 
-    # drop the original list‑columns
+    # Remove the original list columns now that the wide, per-corner fields exist
     df_feats.drop(
         columns=[
             "corner_radii",

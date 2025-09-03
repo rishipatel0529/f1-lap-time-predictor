@@ -1,10 +1,14 @@
-#!/usr/bin/env python3
-# src/features/batch_etl.py
+"""
+scripts/driver_telemetry_code_files/merge_lap_summaries.py
+
+Merges historical lap summaries from both CSV and Parquet sources into a single flat file.
+Recursively scans the driver telemetry directory, concatenates all pieces, and writes
+the combined dataset to data/historical_telemetry.csv for downstream ingestion.
+Designed as a lightweight batch ETL step you can run repeatedly.
+"""
 
 from pathlib import Path
-
 import pandas as pd
-
 
 def run_batch_etl() -> pd.DataFrame:
     """
@@ -18,15 +22,16 @@ def run_batch_etl() -> pd.DataFrame:
     raw_parquet_dir = Path("data/driver_telemetry_csv_files")
 
     pieces = []
-    # legacy CSVs
+    # load legacy CSV exports (if any) from the telemetry folder tree
     if raw_csv_dir.exists():
         for fp in sorted(raw_csv_dir.glob("**/*.csv")):
             pieces.append(pd.read_csv(fp))
-    # fastf1 Parquets
+    # load FastF1-derived Parquet files (more efficient column types)
     if raw_parquet_dir.exists():
         for fp in sorted(raw_parquet_dir.glob("**/*.parquet")):
             pieces.append(pd.read_parquet(fp))
 
+    # Fail fast if nothing was found to help the operator fix paths or generate inputs
     if not pieces:
         raise FileNotFoundError(
             f"No historical telemetry files found in "

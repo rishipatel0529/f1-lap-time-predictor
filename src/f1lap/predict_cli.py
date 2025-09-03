@@ -1,3 +1,12 @@
+"""
+src/f1lap/predict_cli.py
+
+Predict lap times from a trained model and a CSV using the project’s featurization.
+This CLI loads config + model bundle, builds X from the same pipeline used in training,
+supports residualized targets by adding a per-(season,race_round) baseline back,
+and writes predictions (with simple P10–P90 bands) to artifacts/preds.csv.
+"""
+
 from __future__ import annotations
 import argparse, yaml, pandas as pd, numpy as np
 from joblib import load
@@ -5,6 +14,7 @@ from pathlib import Path
 from src.f1lap.featurize import build_dataset
 
 def _key(df, keys):
+    # Compose a composite string key like "2024|15" for joining baseline maps
     k = df[keys[0]].astype(str)
     for c in keys[1:]:
         k = k + "|" + df[c].astype(str)
@@ -18,6 +28,7 @@ def main():
     ap.add_argument("--out", default="artifacts/preds.csv")
     args = ap.parse_args()
 
+    # Read featurization config and load the trained model bundle (estimator + metadata)
     cfg = yaml.safe_load(open(args.config, "r"))
     bundle = load(args.model)
 
@@ -27,7 +38,7 @@ def main():
         X, y, groups, feats, df = out
     else:
         X, y, groups, feats = out
-        df = None  # we won't trust raw CSV lengths
+        df = None
 
     pred_res = bundle["model"].predict(X)
 
